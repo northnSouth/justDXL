@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.1.2
+ * Version : 0.2.0
  * ================================================================================================
  * License
  * -------
@@ -41,8 +41,12 @@
  * 0.1.0 | 2026-08-04 | Simplification
  * 0.1.1 | 2026-08-06 | Refactor
  * 0.1.2 | 2026-08-06 | Comments
+ * 0.2.0 | 2026-08-06 | API expansion, and ping wrapper function
  * ================================================================================================
  */
+
+#ifndef PACKET_HANDLER_PROTOCOL2_H
+#define PACKET_HANDLER_PROTOCOL2_H
 
 #include "string.h"
 #include "stdint.h"
@@ -79,24 +83,35 @@ static const uint8_t DXL_PH2_PKT_HEADER_PATTERN[3] = {
 
 /* Protocol 2.0 instructions */
 /* Enum for code clarity and type safety */
+enum dxl_ph2_dxl_inst {
+        DXL_PH2_DXL_INST_PING = 0x01,
+        DXL_PH2_DXL_INST_READ = 0x02,
+        DXL_PH2_DXL_INST_WRITE = 0x03,
+        DXL_PH2_DXL_INST_REG_WRITE = 0x04,
+        DXL_PH2_DXL_INST_ACTION = 0x05,
+        DXL_PH2_DXL_INST_FACTORY_RESET = 0x06,
+        DXL_PH2_DXL_INST_REBOOT = 0x08,
+        DXL_PH2_DXL_INST_CLEAR = 0x10,
+        DXL_PH2_DXL_INST_CTRL_TABLE_BACKUP = 0x20,
+        DXL_PH2_DXL_INST_STATUS = 0x55,
+        DXL_PH2_DXL_INST_SYNC_READ = 0x82,
+        DXL_PH2_DXL_INST_SYNC_WRITE = 0x83,
+        DXL_PH2_DXL_INST_FAST_SYNC_READ = 0x8A,
+        DXL_PH2_DXL_INST_BULK_READ = 0x92,
+        DXL_PH2_DXL_INST_BULK_WRITE = 0x93,
+        DXL_PH2_DXL_INST_FAST_BULK_READ = 0x9A
+};
+
 typedef enum {
-    DXL_PH2_INST_PING = 0x01,
-    DXL_PH2_INST_READ = 0x02,
-    DXL_PH2_INST_WRITE = 0x03,
-    DXL_PH2_INST_REG_WRITE = 0x04,
-    DXL_PH2_INST_ACTION = 0x05,
-    DXL_PH2_INST_FACTORY_RESET = 0x06,
-    DXL_PH2_INST_REBOOT = 0x08,
-    DXL_PH2_INST_CLEAR = 0x10,
-    DXL_PH2_INST_CTRL_TABLE_BACKUP = 0x20,
-    DXL_PH2_INST_STATUS = 0x55,
-    DXL_PH2_INST_SYNC_READ = 0x82,
-    DXL_PH2_INST_SYNC_WRITE = 0x83,
-    DXL_PH2_INST_FAST_SYNC_READ = 0x8A,
-    DXL_PH2_INST_BULK_READ = 0x92,
-    DXL_PH2_INST_BULK_WRITE = 0x93,
-    DXL_PH2_INST_FAST_BULK_READ = 0x9A
-} dxl_ph2_inst_t;
+        DXL_PH2_DXL_ERR_NONE,
+        DXL_PH2_DXL_ERR_RESULT_FAIL,
+        DXL_PH2_DXL_ERR_INSTRUCTION_ERROR,
+        DXL_PH2_DXL_ERR_CRC_ERROR,
+        DXL_PH2_DXL_ERR_DATA_RANGE_ERROR,
+        DXL_PH2_DXL_ERR_DATA_LENGTH_ERROR,
+        DXL_PH2_DXL_ERR_DATA_LIMIT_ERROR,
+        DXL_PH2_DXL_ERR_ACCESS_ERROR
+} dxl_ph2_dxl_err_t;
 
 /* Generic packet struct */
 typedef struct {
@@ -139,8 +154,46 @@ typedef struct {
         uint16_t                          pkt_body_counter;
 } dxl_ph2_inbound_parser_ctx_t;
 
+typedef enum {
+        DXL_PH2_DIR_RESET,
+        DXL_PH2_DIR_OUTBOUND,
+        DXL_PH2_DIR_INBOUND
+} dxl_ph2_dir_t;
+
+typedef struct {
+        dxl_ph2_dir_t dir;
+        
+        dxl_ph2_pkt_t out_pkt;
+
+        dxl_ph2_pkt_t in_pkt;
+        uint8_t *in_buf;
+        size_t in_buf_len;
+        size_t* in_last_idx_fed;
+        dxl_ph2_dxl_err_t status_err;
+        
+        struct {
+                dxl_ph2_inbound_parser_ctx_t inbound_ctx;
+                dxl_ph2_inbound_parser_return_t builder_ret;
+                dxl_ph2_inbound_parser_return_t parser_ret;
+        } internals;
+} dxl_ph2_ctx_t;
+
+typedef enum {
+        DXL_PH2_SUCCESS,
+        DXL_PH2_ERR_OUTBOUND,
+        DXL_PH2_ERR_INBOUND,
+        DXL_PH2_ERR_SELECT_DIR,
+        DXL_PH2_ERR_CHECK_STATUS_ERR
+} dxl_ph2_err_t;
+
+typedef struct {
+        dxl_ph2_err_t err;
+        dxl_ph2_inbound_parser_return_t in_ret;
+        dxl_ph2_outbound_builder_return_t out_ret;
+} dxl_ph2_return_t;
+
 /* Outbound (TX) packet builder */
-dxl_ph2_outbound_builder_return_t dxl_ph2_build_tx(
+dxl_ph2_outbound_builder_return_t dxl_ph2_build_outbound(
         const uint8_t  id,
         const uint8_t  inst,
         const uint8_t  param[],
@@ -149,7 +202,7 @@ dxl_ph2_outbound_builder_return_t dxl_ph2_build_tx(
 );
 
 /* Inbound (RX) packet parser */
-dxl_ph2_inbound_parser_return_t dxl_ph2_parse_rx(
+dxl_ph2_inbound_parser_return_t dxl_ph2_parse_inbound(
         dxl_ph2_inbound_parser_ctx_t* parser_ctx,
         uint8_t*                      inbound_buf,
         size_t                        inbound_buf_len,
@@ -173,3 +226,29 @@ dxl_ph2_inbound_parser_return_t dxl_ph2_parse_rx(
  * can be stuffed at all, regardless of content.
  */
 uint16_t dxl_ph2_estimate_worst_case_body_len(uint16_t body_len);
+
+dxl_ph2_return_t dxl_ph2_inst_ping(
+        dxl_ph2_ctx_t *ctx,
+        const uint8_t id,
+        uint16_t* model_num,
+        uint8_t* firmware_ver
+);
+
+// TODO: dxl_ph2_inst_ping_broadcast();
+// TODO: dxl_ph2_inst_read();
+// TODO: dxl_ph2_inst_write();
+// TODO: dxl_ph2_inst_regwrite();
+// TODO: dxl_ph2_inst_action();
+// TODO: dxl_ph2_inst_ping_broadcast();
+// TODO: dxl_ph2_inst_factory_reset();
+// TODO: dxl_ph2_inst_reboot();
+// TODO: dxl_ph2_inst_clear();
+// TODO: dxl_ph2_inst_ctrl_tbl_bkp();
+// TODO: dxl_ph2_inst_sync_read();
+// TODO: dxl_ph2_inst_sync_write();
+// TODO: dxl_ph2_inst_fast_sync_read();
+// TODO: dxl_ph2_inst_bulk_read();
+// TODO: dxl_ph2_inst_bulk_write();
+// TODO: dxl_ph2_inst_fast_sync_write();
+
+#endif

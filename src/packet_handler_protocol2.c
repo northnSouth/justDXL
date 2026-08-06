@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.1.2
+ * Version : 0.2.0
  * ================================================================================================
  * License
  * -------
@@ -41,6 +41,7 @@
  * 0.1.0 | 2026-08-04 | Simplification
  * 0.1.1 | 2026-08-06 | Refactor
  * 0.1.2 | 2026-08-06 | Comments
+ * 0.2.0 | 2026-08-06 | API expansion, and ping wrapper function
  * ================================================================================================
  */
 
@@ -54,22 +55,22 @@
 
 /* Lookup array for instruction validation */
 static const uint8_t valid_insts[] = {
-    DXL_PH2_INST_PING,
-    DXL_PH2_INST_READ,
-    DXL_PH2_INST_WRITE,
-    DXL_PH2_INST_REG_WRITE,
-    DXL_PH2_INST_ACTION,
-    DXL_PH2_INST_FACTORY_RESET,
-    DXL_PH2_INST_REBOOT,
-    DXL_PH2_INST_CLEAR,
-    DXL_PH2_INST_CTRL_TABLE_BACKUP,
-    DXL_PH2_INST_STATUS,
-    DXL_PH2_INST_SYNC_READ,
-    DXL_PH2_INST_SYNC_WRITE,
-    DXL_PH2_INST_FAST_SYNC_READ,
-    DXL_PH2_INST_BULK_READ,
-    DXL_PH2_INST_BULK_WRITE,
-    DXL_PH2_INST_FAST_BULK_READ
+    DXL_PH2_DXL_INST_PING,
+    DXL_PH2_DXL_INST_READ,
+    DXL_PH2_DXL_INST_WRITE,
+    DXL_PH2_DXL_INST_REG_WRITE,
+    DXL_PH2_DXL_INST_ACTION,
+    DXL_PH2_DXL_INST_FACTORY_RESET,
+    DXL_PH2_DXL_INST_REBOOT,
+    DXL_PH2_DXL_INST_CLEAR,
+    DXL_PH2_DXL_INST_CTRL_TABLE_BACKUP,
+    DXL_PH2_DXL_INST_STATUS,
+    DXL_PH2_DXL_INST_SYNC_READ,
+    DXL_PH2_DXL_INST_SYNC_WRITE,
+    DXL_PH2_DXL_INST_FAST_SYNC_READ,
+    DXL_PH2_DXL_INST_BULK_READ,
+    DXL_PH2_DXL_INST_BULK_WRITE,
+    DXL_PH2_DXL_INST_FAST_BULK_READ
 };
 
 static const size_t valid_insts_len = sizeof(valid_insts) / sizeof(valid_insts[0]);
@@ -241,7 +242,7 @@ static void dxl_ph2_rem_stuffing(uint8_t *packet)
 }
 
 /* TX packet builder */
-dxl_ph2_outbound_builder_return_t dxl_ph2_build_tx(
+dxl_ph2_outbound_builder_return_t dxl_ph2_build_outbound(
         const uint8_t id,
         const uint8_t inst,
         const uint8_t param[],
@@ -442,7 +443,7 @@ static dxl_ph2_inbound_parser_return_t parser_handle_feeding(
 }
 
 /* RX parser dispatcher */
-dxl_ph2_inbound_parser_return_t dxl_ph2_parse_rx(
+dxl_ph2_inbound_parser_return_t dxl_ph2_parse_inbound(
         dxl_ph2_inbound_parser_ctx_t* parser_ctx,
         uint8_t* inbound_buf,
         size_t inbound_buf_len,
@@ -498,4 +499,83 @@ uint16_t dxl_ph2_estimate_worst_case_body_len(uint16_t body_len)
         uint32_t estimate = (uint32_t)body_len + extra;
 
         return (estimate > UINT16_MAX) ? UINT16_MAX : (uint16_t)estimate;
+}
+
+dxl_ph2_return_t dxl_ph2_inst_ping(
+        dxl_ph2_ctx_t *ctx,
+        const uint8_t id,
+        uint16_t* model_num,
+        uint8_t* firmware_ver
+){
+        dxl_ph2_return_t ret = {0};
+        switch (ctx->dir) {
+                case DXL_PH2_DIR_OUTBOUND: {
+                        uint8_t param[0];
+                        memset(&ctx->out_pkt, 0, sizeof(ctx->out_pkt));
+                        
+                        dxl_ph2_outbound_builder_return_t out_ret = dxl_ph2_build_outbound(
+                                id, 
+                                DXL_PH2_DXL_INST_PING, 
+                                param, sizeof(param), 
+                                &ctx->out_pkt
+                        );
+
+                        if (out_ret != DXL_PH2_OUTBOUND_BUILDER_SUCCESS)
+                        {
+                                ret.err = DXL_PH2_ERR_OUTBOUND;
+                                ret.out_ret = out_ret;
+                                break;
+                        }
+
+                        
+                        ctx->dir = DXL_PH2_DIR_RESET;
+                        
+                        break;
+                }
+                case DXL_PH2_DIR_INBOUND: {
+                        if (ctx->internals.inbound_ctx.state == DXL_PH2_INBOUND_PARSER_STATE_RESET)
+                                memset(&ctx->in_pkt, 0, sizeof(ctx->in_pkt));
+
+                        dxl_ph2_inbound_parser_return_t in_ret = dxl_ph2_parse_inbound(
+                                &ctx->internals.inbound_ctx,
+                                ctx->in_buf, 
+                                ctx->in_buf_len, 
+                                14, // guaranteed for ping
+                                1, // stuffing unnecessary since body_len < 8 
+                                ctx->in_last_idx_fed, 
+                                &ctx->in_pkt
+                        );
+                        
+                        if (in_ret != DXL_PH2_INBOUND_PARSER_SUCCESS)
+                        {
+                                ret.err = DXL_PH2_ERR_INBOUND;
+                                ret.in_ret = in_ret;
+                                break;
+                        }
+                        
+                        ctx->status_err = ctx->in_pkt.dxl_buffer[DXL_PH2_PKT_IDX_ERROR];
+
+                        if (ctx->status_err != DXL_PH2_DXL_ERR_NONE)
+                        {
+                                ret.err = DXL_PH2_ERR_CHECK_STATUS_ERR;
+                                break;
+                        }
+
+                        *model_num = BYTES_TO_U16(
+                                ctx->in_pkt.dxl_buffer[DXL_PH2_PKT_IDX_ERROR + 1],
+                                ctx->in_pkt.dxl_buffer[DXL_PH2_PKT_IDX_ERROR + 2]
+                        );
+                        *firmware_ver = ctx->in_pkt.dxl_buffer[DXL_PH2_PKT_IDX_ERROR + 3];
+
+                        ctx-> dir = DXL_PH2_DIR_RESET;
+                        
+                        break;
+                }
+                case DXL_PH2_DIR_RESET: { 
+                        ret.err = DXL_PH2_ERR_SELECT_DIR;
+                        break;
+                }
+        }
+
+        return ret;
 }
