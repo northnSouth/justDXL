@@ -158,3 +158,18 @@ dxl_ph2_inbound_parser_return_t dxl_ph2_parse_rx(
         size_t*                       last_idx_fed,
         dxl_ph2_pkt_t*                out_pkt
 );
+
+/* Worst-case packet body length estimator
+ *
+ * Given a body length (INST + params + CRC, i.e. param_len + 3, the same
+ * value dxl_ph2_build_tx computes internally as `packet_body`), returns an
+ * upper bound on what that body length could grow to after byte stuffing,
+ * without needing to actually run dxl_ph2_add_stuffing on real data.
+ *
+ * Worst case is a repeating FF FF FD pattern: that 3-byte sequence has no
+ * self-overlap, so occurrences can never be packed closer than 3 bytes apart,
+ * giving a maximum of floor((body_len - 3) / 3) stuffed bytes. Below a body
+ * length of 8, dxl_ph2_add_stuffing's own minimum-length guard means nothing
+ * can be stuffed at all, regardless of content.
+ */
+uint16_t dxl_ph2_estimate_worst_case_body_len(uint16_t body_len);

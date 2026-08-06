@@ -45,6 +45,7 @@
  */
 
 #include "packet_handler_protocol2.h"
+#include <stdint.h>
 #include <string.h>
 
 #define BYTES_TO_U16(lo, hi) ((uint16_t)((uint16_t)(lo) | ((uint16_t)(hi) << 8)))
@@ -484,4 +485,17 @@ dxl_ph2_inbound_parser_return_t dxl_ph2_parse_rx(
         }
 
         return ret;
+}
+
+/* Worst-case packet body length estimator */
+uint16_t dxl_ph2_estimate_worst_case_body_len(uint16_t body_len)
+{
+        if (body_len < 8) {
+                return body_len;
+        }
+
+        uint16_t extra = (body_len - 3) / 3;
+        uint32_t estimate = (uint32_t)body_len + extra;
+
+        return (estimate > UINT16_MAX) ? UINT16_MAX : (uint16_t)estimate;
 }
