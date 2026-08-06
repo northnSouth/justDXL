@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.1.1
+ * Version : 0.1.2
  * ================================================================================================
  * License
  * -------
@@ -77,6 +77,27 @@ static const uint8_t DXL_PH2_PKT_HEADER_PATTERN[3] = {
         DXL_PH2_PKT_BYTE_HEADER_3
 };
 
+/* Protocol 2.0 instructions */
+/* Enum for code clarity and type safety */
+typedef enum {
+    DXL_PH2_INST_PING = 0x01,
+    DXL_PH2_INST_READ = 0x02,
+    DXL_PH2_INST_WRITE = 0x03,
+    DXL_PH2_INST_REG_WRITE = 0x04,
+    DXL_PH2_INST_ACTION = 0x05,
+    DXL_PH2_INST_FACTORY_RESET = 0x06,
+    DXL_PH2_INST_REBOOT = 0x08,
+    DXL_PH2_INST_CLEAR = 0x10,
+    DXL_PH2_INST_CTRL_TABLE_BACKUP = 0x20,
+    DXL_PH2_INST_STATUS = 0x55,
+    DXL_PH2_INST_SYNC_READ = 0x82,
+    DXL_PH2_INST_SYNC_WRITE = 0x83,
+    DXL_PH2_INST_FAST_SYNC_READ = 0x8A,
+    DXL_PH2_INST_BULK_READ = 0x92,
+    DXL_PH2_INST_BULK_WRITE = 0x93,
+    DXL_PH2_INST_FAST_BULK_READ = 0x9A
+} dxl_ph2_inst_t;
+
 /* Generic packet struct */
 typedef struct {
         uint8_t  dxl_buffer[DXL_PH2_PKT_MAX_LEN];
@@ -94,8 +115,21 @@ enum dxl_ph2_inbound_parser_state {
 typedef enum {
         DXL_PH2_INBOUND_PARSER_SUCCESS,
         DXL_PH2_INBOUND_PARSER_NEED_MORE,
-        DXL_PH2_INBOUND_PARSER_ERROR
+        DXL_PH2_INBOUND_PARSER_ERROR_INVALID_RSRVD,
+        DXL_PH2_INBOUND_PARSER_ERROR_INVALID_ID,
+        DXL_PH2_INBOUND_PARSER_ERROR_PARAM_TOO_LONG,
+        DXL_PH2_INBOUND_PARSER_ERROR_NOT_A_STATUS_PKT,
+        DXL_PH2_INBOUND_PARSER_ERROR_CRC_MISMATCH,
+        DXL_PH2_INBOUND_PARSER_ERROR_CTX_STILL_RESET
 } dxl_ph2_inbound_parser_return_t;
+
+typedef enum {
+        DXL_PH2_OUTBOUND_BUILDER_SUCCESS,
+        DXL_PH2_OUTBOUND_BUILDER_ERROR_INVALID_ID,
+        DXL_PH2_OUTBOUND_BUILDER_ERROR_INVALID_INST,
+        DXL_PH2_OUTBOUND_BUILDER_ERROR_PARAM_TOO_LONG,
+        DXL_PH2_OUTBOUND_BUILDER_ERROR_STUFFING_TOO_LONG
+} dxl_ph2_outbound_builder_return_t;
 
 /* Inbound packet parser struct */
 typedef struct {
@@ -106,7 +140,7 @@ typedef struct {
 } dxl_ph2_inbound_parser_ctx_t;
 
 /* Outbound (TX) packet builder */
-void dxl_ph2_build_tx(
+dxl_ph2_outbound_builder_return_t dxl_ph2_build_tx(
         const uint8_t  id,
         const uint8_t  inst,
         const uint8_t  param[],

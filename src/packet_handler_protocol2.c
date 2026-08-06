@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.1.1
+ * Version : 0.1.2
  * ================================================================================================
  * License
  * -------
@@ -33,7 +33,7 @@
  * ================================================================================================
  * Description
  * -----------
- TODO: Description
+ * //TODO
  * ================================================================================================
  * Changelog
  * ---------
@@ -45,6 +45,33 @@
  */
 
 #include "packet_handler_protocol2.h"
+#include <string.h>
+
+#define BYTES_TO_U16(lo, hi) ((uint16_t)((uint16_t)(lo) | ((uint16_t)(hi) << 8)))
+#define U16_TO_LOWBYTE(w) ((uint8_t)(w))
+#define U16_TO_HIGHBYTE(w) ((uint8_t)((w) >> 8))
+
+/* Lookup array for instruction validation */
+static const uint8_t valid_insts[] = {
+    DXL_PH2_INST_PING,
+    DXL_PH2_INST_READ,
+    DXL_PH2_INST_WRITE,
+    DXL_PH2_INST_REG_WRITE,
+    DXL_PH2_INST_ACTION,
+    DXL_PH2_INST_FACTORY_RESET,
+    DXL_PH2_INST_REBOOT,
+    DXL_PH2_INST_CLEAR,
+    DXL_PH2_INST_CTRL_TABLE_BACKUP,
+    DXL_PH2_INST_STATUS,
+    DXL_PH2_INST_SYNC_READ,
+    DXL_PH2_INST_SYNC_WRITE,
+    DXL_PH2_INST_FAST_SYNC_READ,
+    DXL_PH2_INST_BULK_READ,
+    DXL_PH2_INST_BULK_WRITE,
+    DXL_PH2_INST_FAST_BULK_READ
+};
+
+static const size_t valid_insts_len = sizeof(valid_insts) / sizeof(valid_insts[0]);
 
 /* CRC computation 
  * Source: https://docs.robotis.com/docs/dxl/protocol/crc
@@ -121,125 +148,150 @@ static uint16_t helper_calc_crc_from_rxbuf(
         return update_crc(0, rxbuf, bufsize - 2);
 }
 
-/* Stuffing insertion
- * //TODO: Notes on the difference between my stuffing and official ROBOTIS DynamixelSDK stuffing
+/* Stuffing insertion 
+ * Source: https://github.com/ROBOTIS-GIT/DynamixelSDK/blob/main/c%2B%2B/src/dynamixel_sdk/protocol2_packet_handler.cpp
  */
-void dxl_ph2_add_stuffing(uint8_t *packet)
+static uint8_t dxl_ph2_add_stuffing(uint8_t *packet)
 {
-    uint8_t *packet_ptr;
-    uint16_t idx;
-    uint16_t out_index, in_index;
-    uint16_t packet_length_before_crc;
-    uint16_t body_end;
-    uint16_t packet_length_in = (uint16_t)packet[DXL_PH2_PKT_IDX_LENGTH_L] | ((uint16_t)packet[DXL_PH2_PKT_IDX_LENGTH_H] << 8);
-    uint16_t packet_length_out = packet_length_in;
+        int packet_length_in = BYTES_TO_U16(
+                packet[DXL_PH2_PKT_IDX_LENGTH_L],
+                packet[DXL_PH2_PKT_IDX_LENGTH_H]
+        );
 
-    if (packet_length_in < 5) return; // INST, P1, P2, CRC_L, CRC_H
+        int packet_length_out = packet_length_in;
+        
+        // INSTRUCTION, ADDR_L, ADDR_H, CRC16_L, CRC16_H + FF FF FD
+        if (packet_length_in < 8) return 0;
 
-    packet_length_before_crc = packet_length_in - 2;            // INST, P1-Pn
-    body_end = DXL_PH2_PKT_IDX_INSTRUCTION + packet_length_before_crc;  // CRC_L
-
-    // scan window: [LENGTH_L, CRC_L)
-    for (idx = DXL_PH2_PKT_IDX_LENGTH_L; idx + 2 < body_end; idx++)
-    {
-        packet_ptr = &packet[idx];
-        if (packet_ptr[0] == 0xFF && packet_ptr[1] == 0xFF && packet_ptr[2] == 0xFD) packet_length_out++;
-    }
-
-    if ((uint32_t)packet_length_out + DXL_PH2_PKT_IDX_INSTRUCTION > DXL_PH2_PKT_MAX_LEN) return; // TODO: proper error propagation
-    if (packet_length_in == packet_length_out) return; // no stuffing required
-
-    out_index  = packet_length_out + 6 - 2; // last index before crc
-    in_index   = packet_length_in + 6 - 2;  // last index before crc
-    while (out_index != in_index)
-    {
-        if (packet[in_index] == 0xFD && packet[in_index-1] == 0xFF && packet[in_index-2] == 0xFF)
+        uint8_t *packet_ptr;
+        uint16_t packet_length_before_crc = packet_length_in - 2;
+        for (uint16_t i = 3; i < packet_length_before_crc; i++)
         {
-            packet[out_index--] = 0xFD; // byte stuffing
-            if (out_index != in_index)
-            {
-                packet[out_index--] = packet[in_index--]; // FD
-                packet[out_index--] = packet[in_index--]; // FF
-                packet[out_index--] = packet[in_index--]; // FF
-            }
+                packet_ptr = &packet[i+DXL_PH2_PKT_IDX_INSTRUCTION-2];
+                if (packet_ptr[0] == 0xFF && packet_ptr[1] == 0xFF && packet_ptr[2] == 0xFD)
+                        packet_length_out++;
         }
-        else packet[out_index--] = packet[in_index--];
-    }
 
-    packet[DXL_PH2_PKT_IDX_LENGTH_L] = packet_length_out & 0xFF;
-    packet[DXL_PH2_PKT_IDX_LENGTH_H] = (packet_length_out >> 8) & 0xFF;
+        // buffer will overflow, this reports it
+        if ((packet_length_out + DXL_PH2_PKT_IDX_INSTRUCTION) > DXL_PH2_PKT_MAX_LEN) return 1;
+
+        // no stuffing required
+        if (packet_length_in == packet_length_out) return 0;
+
+        uint16_t out_index  = packet_length_out + 6 - 2;  // last index before crc
+        uint16_t in_index   = packet_length_in + 6 - 2;   // last index before crc
+        while (out_index != in_index)
+        {
+                if (packet[in_index] == 0xFD 
+                    && packet[in_index-1] == 0xFF 
+                    && packet[in_index-2] == 0xFF
+                ){
+                        packet[out_index--] = 0xFD; // byte stuffing
+                        if (out_index != in_index)
+                        {
+                                packet[out_index--] = packet[in_index--]; // FD
+                                packet[out_index--] = packet[in_index--]; // FF
+                                packet[out_index--] = packet[in_index--]; // FF
+                        }
+                }
+                else
+                {
+                        packet[out_index--] = packet[in_index--];
+                }
+        }
+
+        packet[DXL_PH2_PKT_IDX_LENGTH_L] = U16_TO_LOWBYTE(packet_length_out);
+        packet[DXL_PH2_PKT_IDX_LENGTH_H] = U16_TO_HIGHBYTE(packet_length_out);
+  
+  return 0;
 }
 
 /* Stuffing removal
- * // TODO: Notes on the difference between my stuffing and official ROBOTIS DynamixelSDK stuffing
+ * Source: https://github.com/ROBOTIS-GIT/DynamixelSDK/blob/main/c%2B%2B/src/dynamixel_sdk/protocol2_packet_handler.cpp
  */
-void dxl_ph2_rem_stuffing(uint8_t *packet)
+static void dxl_ph2_rem_stuffing(uint8_t *packet)
 {
-    uint16_t stuff_idx = 0;
-    uint16_t pkt_idx = 0;
-    uint16_t packet_length_in = (uint16_t)packet[DXL_PH2_PKT_IDX_LENGTH_L] | ((uint16_t)packet[DXL_PH2_PKT_IDX_LENGTH_H] << 8);
-    uint16_t packet_length_out = packet_length_in;
+        int i = 0, index = 0;
+        int packet_length_in = BYTES_TO_U16(
+                packet[DXL_PH2_PKT_IDX_LENGTH_L],
+                packet[DXL_PH2_PKT_IDX_LENGTH_H]
+        );
 
-    pkt_idx = DXL_PH2_PKT_IDX_LENGTH_L;
+        int packet_length_out = packet_length_in;
 
-    // LENGTH_L..LENGTH_H..INST..Pn
-    for (stuff_idx = 0; stuff_idx < packet_length_in; stuff_idx++)
-    {
-        if ( // FF FF FD FD
-            packet[stuff_idx + DXL_PH2_PKT_IDX_LENGTH_L] == 0xFD &&
-            packet[stuff_idx + DXL_PH2_PKT_IDX_LENGTH_L + 1] == 0xFD &&
-            packet[stuff_idx + DXL_PH2_PKT_IDX_LENGTH_L - 1] == 0xFF &&
-            packet[stuff_idx + DXL_PH2_PKT_IDX_LENGTH_L - 2] == 0xFF)
+        index = DXL_PH2_PKT_IDX_INSTRUCTION;
+        for (i = 0; i < packet_length_in - 2; i++)  // except CRC
         {
-            packet_length_out--;
-            stuff_idx++;
+                if (packet[i+DXL_PH2_PKT_IDX_INSTRUCTION] == 0xFD 
+                    && packet[i+DXL_PH2_PKT_IDX_INSTRUCTION+1] == 0xFD 
+                    && packet[i+DXL_PH2_PKT_IDX_INSTRUCTION-1] == 0xFF 
+                    && packet[i+DXL_PH2_PKT_IDX_INSTRUCTION-2] == 0xFF)
+                {   // FF FF FD FD
+                        packet_length_out--;
+                        i++;
+                }
+                packet[index++] = packet[i+DXL_PH2_PKT_IDX_INSTRUCTION];
         }
-        packet[pkt_idx++] = packet[stuff_idx + DXL_PH2_PKT_IDX_LENGTH_L];
-    }
+        packet[index++] = packet[DXL_PH2_PKT_IDX_INSTRUCTION+packet_length_in-2];
+        packet[index++] = packet[DXL_PH2_PKT_IDX_INSTRUCTION+packet_length_in-1];
 
-    packet[pkt_idx++] = packet[DXL_PH2_PKT_IDX_LENGTH_L + packet_length_in];     // CRC_L
-    packet[pkt_idx++] = packet[DXL_PH2_PKT_IDX_LENGTH_L + packet_length_in + 1]; // CRC_H
-
-    packet[DXL_PH2_PKT_IDX_LENGTH_L] = packet_length_out & 0xFF;
-    packet[DXL_PH2_PKT_IDX_LENGTH_H] = (packet_length_out >> 8) & 0xFF;
+        packet[DXL_PH2_PKT_IDX_LENGTH_L] = U16_TO_LOWBYTE(packet_length_out);
+        packet[DXL_PH2_PKT_IDX_LENGTH_H] = U16_TO_HIGHBYTE(packet_length_out);
 }
 
 /* TX packet builder */
-void dxl_ph2_build_tx(
+dxl_ph2_outbound_builder_return_t dxl_ph2_build_tx(
         const uint8_t id,
         const uint8_t inst,
         const uint8_t param[],
         const size_t param_len,
         dxl_ph2_pkt_t* out_pkt
 ){
+        /* ID must not be 0xFF or 0xFD 
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#packet-id
+         */
+        if (id == 0xFF || id == 0xFD) return DXL_PH2_OUTBOUND_BUILDER_ERROR_INVALID_ID;
+
+        for (uint8_t i = 0; i < valid_insts_len; i++) {
+                if (valid_insts[i] == inst) break;
+                if (i == valid_insts_len - 1) 
+                        return DXL_PH2_OUTBOUND_BUILDER_ERROR_INVALID_INST;
+        }
+
         uint16_t packet_body = param_len + 3;
 
-        if ((uint32_t)packet_body + DXL_PH2_PKT_IDX_INSTRUCTION > DXL_PH2_PKT_MAX_LEN) return; // TODO: proper error propagation
+        if ((size_t)packet_body + DXL_PH2_PKT_IDX_INSTRUCTION > DXL_PH2_PKT_MAX_LEN) 
+                return DXL_PH2_OUTBOUND_BUILDER_ERROR_PARAM_TOO_LONG;
 
         uint8_t len_l = packet_body & 0xFF;
         uint8_t len_h = (packet_body >> 8) & 0xFF;
+        
+        // build packet without header and CRC
+        out_pkt->dxl_buffer[4] = id;
+        out_pkt->dxl_buffer[5] = len_l;
+        out_pkt->dxl_buffer[6] = len_h;
+        out_pkt->dxl_buffer[7] = inst;
+        memcpy(&out_pkt->dxl_buffer[DXL_PH2_PKT_IDX_INSTRUCTION + 1], param, param_len);
 
-        uint8_t tx_buf[DXL_PH2_PKT_MAX_LEN] = {0};
-        
-        tx_buf[4] = id;
-        tx_buf[5] = len_l;
-        tx_buf[6] = len_h;
-        tx_buf[7] = inst;
-        memcpy(&tx_buf[DXL_PH2_PKT_IDX_INSTRUCTION + 1], param, param_len);
-        dxl_ph2_add_stuffing(tx_buf);
-        
+        if (dxl_ph2_add_stuffing(out_pkt->dxl_buffer)) 
+                return DXL_PH2_OUTBOUND_BUILDER_ERROR_STUFFING_TOO_LONG;
+
         // update payload length after stuffing
-        packet_body = (uint16_t)tx_buf[DXL_PH2_PKT_IDX_LENGTH_L] | ((uint16_t)tx_buf[DXL_PH2_PKT_IDX_LENGTH_H] << 8);
+        packet_body = BYTES_TO_U16(
+                out_pkt->dxl_buffer[DXL_PH2_PKT_IDX_LENGTH_L],
+                out_pkt->dxl_buffer[DXL_PH2_PKT_IDX_LENGTH_H]
+        );
 
-        tx_buf[0] = DXL_PH2_PKT_BYTE_HEADER_1;
-        tx_buf[1] = DXL_PH2_PKT_BYTE_HEADER_2;
-        tx_buf[2] = DXL_PH2_PKT_BYTE_HEADER_3;
-        tx_buf[3] = DXL_PH2_PKT_BYTE_RSRVD;
+        // add header and CRC
+        out_pkt->dxl_buffer[0] = DXL_PH2_PKT_BYTE_HEADER_1;
+        out_pkt->dxl_buffer[1] = DXL_PH2_PKT_BYTE_HEADER_2;
+        out_pkt->dxl_buffer[2] = DXL_PH2_PKT_BYTE_HEADER_3;
+        out_pkt->dxl_buffer[3] = DXL_PH2_PKT_BYTE_RSRVD;
         
         out_pkt->payload_len = DXL_PH2_PKT_IDX_INSTRUCTION + packet_body;
-        helper_calc_crc_to_txbuf(tx_buf, out_pkt->payload_len);
+        helper_calc_crc_to_txbuf(out_pkt->dxl_buffer, out_pkt->payload_len);
         
-        memcpy(out_pkt->dxl_buffer, tx_buf, out_pkt->payload_len);
+        return DXL_PH2_OUTBOUND_BUILDER_SUCCESS;
 }
 
 /* Handle LOOK_HEADER state */
@@ -259,18 +311,21 @@ static dxl_ph2_inbound_parser_return_t parser_handle_look_header(
                         parser_ctx->pkt_header_seq_counter++;
                         
                         if (parser_ctx->pkt_header_seq_counter == sizeof(DXL_PH2_PKT_HEADER_PATTERN)) {
-                                /* Header found! Initialize packet buffer and move to next state */
+                                /* header found, initialize packet buffer and move to next state */
                                 parser_ctx->pkt_header_seq_counter = 0;
                                 parser_ctx->state = DXL_PH2_INBOUND_PARSER_STATE_PKT_HEADER_FOUND;
                                 
-                                memcpy(out_pkt->dxl_buffer, DXL_PH2_PKT_HEADER_PATTERN, sizeof(DXL_PH2_PKT_HEADER_PATTERN));
+                                memcpy(out_pkt->dxl_buffer, 
+                                       DXL_PH2_PKT_HEADER_PATTERN, 
+                                       sizeof(DXL_PH2_PKT_HEADER_PATTERN)
+                                );
                                 out_pkt->payload_len = sizeof(DXL_PH2_PKT_HEADER_PATTERN);
                                 
                                 (*last_idx_fed)++;  /* consume this byte and exit */
                                 return DXL_PH2_INBOUND_PARSER_NEED_MORE;
                         }
                 } else {
-                        /* Mismatch - reset counter, but check if current byte starts new sequence */
+                        /* reset counter, and check if current byte starts new sequence */
                         parser_ctx->pkt_header_seq_counter = (byte == DXL_PH2_PKT_HEADER_PATTERN[0]) ? 1 : 0;
                 }
         }
@@ -279,17 +334,19 @@ static dxl_ph2_inbound_parser_return_t parser_handle_look_header(
 }
 
 /* Validate bytes after header before params */
-static dxl_ph2_inbound_parser_return_t validate_pkt_header_byte(
+static dxl_ph2_inbound_parser_return_t validate_pkt_start_byte(
         uint8_t counter,
         uint8_t byte
 )
 {
         if (counter == 0) {
                 /* RSRVD must be 0x00 */
-                if (byte != DXL_PH2_PKT_BYTE_RSRVD) return DXL_PH2_INBOUND_PARSER_ERROR;
+                if (byte != DXL_PH2_PKT_BYTE_RSRVD) return DXL_PH2_INBOUND_PARSER_ERROR_INVALID_RSRVD;
         } else if (counter == 1) {
-                /* ID must not be 0xFF or 0xFD (would break framing) */
-                if (byte == 0xFF || byte == 0xFD) return DXL_PH2_INBOUND_PARSER_ERROR;
+                /* ID must not be 0xFF or 0xFD 
+                 * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#packet-id
+                 */
+                if (byte == 0xFF || byte == 0xFD) return DXL_PH2_INBOUND_PARSER_ERROR_INVALID_ID;
         }
         
         return DXL_PH2_INBOUND_PARSER_NEED_MORE;
@@ -309,33 +366,30 @@ static dxl_ph2_inbound_parser_return_t parser_handle_pkt_header_found(
                 uint8_t byte = inbound_buf[*last_idx_fed];
                 uint8_t counter = parser_ctx->pkt_start_counter;
 
-                /* Validate header bytes if needed */
+                /* validate starting bytes */
                 if (counter < 5) {  /* RSRVD, ID, Length Low, Length High, INST */
-                        dxl_ph2_inbound_parser_return_t val_ret = validate_pkt_header_byte(counter, byte);
+                        dxl_ph2_inbound_parser_return_t val_ret = validate_pkt_start_byte(counter, byte);
                         if (val_ret != DXL_PH2_INBOUND_PARSER_NEED_MORE) return val_ret;
                 }
 
-                /* Append byte to packet */
+                /* append byte to packet */
                 out_pkt->dxl_buffer[out_pkt->payload_len] = byte;
                 out_pkt->payload_len++;
                 parser_ctx->pkt_start_counter++;
                 (*last_idx_fed)++;
 
-                /* Check if we've read all fixed header bytes */
                 if (parser_ctx->pkt_start_counter >= 5) {
-                        /* Extract body length and validate */
                         uint16_t body_len = (uint16_t)out_pkt->dxl_buffer[DXL_PH2_PKT_IDX_LENGTH_L] 
                                             | ((uint16_t)out_pkt->dxl_buffer[DXL_PH2_PKT_IDX_LENGTH_H] << 8);
-                        uint32_t pkt_len = body_len + DXL_PH2_PKT_IDX_PARAMETER0;
+                        uint32_t pkt_len = body_len + DXL_PH2_PKT_IDX_INSTRUCTION;
 
                         if (pkt_len > pkt_len_estimate || pkt_len > DXL_PH2_PKT_MAX_LEN) {
-                                return DXL_PH2_INBOUND_PARSER_ERROR;
+                                return DXL_PH2_INBOUND_PARSER_ERROR_PARAM_TOO_LONG;
                         }
                         if (out_pkt->dxl_buffer[DXL_PH2_PKT_IDX_INSTRUCTION] != 0x55) {
-                                return DXL_PH2_INBOUND_PARSER_ERROR;
+                                return DXL_PH2_INBOUND_PARSER_ERROR_NOT_A_STATUS_PKT;
                         }
 
-                        /* Move to FEEDING state */
                         parser_ctx->pkt_start_counter = 0;
                         parser_ctx->pkt_body_counter = body_len - 1;  /* minus INST */
                         parser_ctx->state = DXL_PH2_INBOUND_PARSER_STATE_FEEDING;
@@ -346,7 +400,7 @@ static dxl_ph2_inbound_parser_return_t parser_handle_pkt_header_found(
         return DXL_PH2_INBOUND_PARSER_NEED_MORE;
 }
 
-/* Handle FEEDING state, param bytes except INST since it is validated in HEADER_FOUND */
+/* Handle FEEDING state, param bytes except INST since it is validated in HEADER_FOUND handler */
 static dxl_ph2_inbound_parser_return_t parser_handle_feeding(
         dxl_ph2_inbound_parser_ctx_t* parser_ctx,
         uint8_t* inbound_buf,
@@ -356,32 +410,34 @@ static dxl_ph2_inbound_parser_return_t parser_handle_feeding(
         dxl_ph2_pkt_t* out_pkt
 )
 {
-        while (*last_idx_fed < inbound_buf_len) {
-                if (parser_ctx->pkt_body_counter > 0) {
-                        out_pkt->dxl_buffer[out_pkt->payload_len] = inbound_buf[*last_idx_fed];
-                        out_pkt->payload_len++;
-                        parser_ctx->pkt_body_counter--;
-                        (*last_idx_fed)++;
-                } else {
-                        /* Body complete - validate CRC and finish */
-                        uint16_t inbound_crc = ((uint16_t)out_pkt->dxl_buffer[out_pkt->payload_len - 1] << 8) 
-                                | out_pkt->dxl_buffer[out_pkt->payload_len - 2];
-                        uint16_t calculated_crc = helper_calc_crc_from_rxbuf(out_pkt->dxl_buffer, out_pkt->payload_len);
-
-                        if (inbound_crc != calculated_crc) {
-                                return DXL_PH2_INBOUND_PARSER_ERROR;
-                        }
-
-                        if (!skip_stuffing) {
-                                dxl_ph2_rem_stuffing(out_pkt->dxl_buffer);
-                        }
-
-                        parser_ctx->state = DXL_PH2_INBOUND_PARSER_STATE_RESET;
-                        return DXL_PH2_INBOUND_PARSER_SUCCESS;
-                }
+        while (parser_ctx->pkt_body_counter > 0 && *last_idx_fed < inbound_buf_len) {
+                out_pkt->dxl_buffer[out_pkt->payload_len] = inbound_buf[*last_idx_fed];
+                out_pkt->payload_len++;
+                parser_ctx->pkt_body_counter--;
+                (*last_idx_fed)++;
         }
 
-        return DXL_PH2_INBOUND_PARSER_NEED_MORE;
+        if (parser_ctx->pkt_body_counter > 0) {
+                return DXL_PH2_INBOUND_PARSER_NEED_MORE;
+        }
+
+        uint16_t inbound_crc = ((uint16_t)out_pkt->dxl_buffer[out_pkt->payload_len - 1] << 8)
+                | out_pkt->dxl_buffer[out_pkt->payload_len - 2];
+        uint16_t calculated_crc = helper_calc_crc_from_rxbuf(
+                out_pkt->dxl_buffer,
+                out_pkt->payload_len
+        );
+
+        if (inbound_crc != calculated_crc) {
+                return DXL_PH2_INBOUND_PARSER_ERROR_CRC_MISMATCH;
+        }
+
+        if (!skip_stuffing) {
+                dxl_ph2_rem_stuffing(out_pkt->dxl_buffer);
+        }
+
+        parser_ctx->state = DXL_PH2_INBOUND_PARSER_STATE_RESET;
+        return DXL_PH2_INBOUND_PARSER_SUCCESS;
 }
 
 /* RX parser dispatcher */
@@ -398,24 +454,25 @@ dxl_ph2_inbound_parser_return_t dxl_ph2_parse_rx(
         dxl_ph2_inbound_parser_return_t ret = DXL_PH2_INBOUND_PARSER_NEED_MORE;
         *last_idx_fed = 0;
 
-        /* Reset parser state if needed */
         if (parser_ctx->state == DXL_PH2_INBOUND_PARSER_STATE_RESET) {
                 parser_ctx->state = DXL_PH2_INBOUND_PARSER_STATE_LOOK_HEADER;
         }
 
-        /* Dispatch to appropriate state handler */
         switch (parser_ctx->state) {
+                case DXL_PH2_INBOUND_PARSER_STATE_RESET: 
+                        ret = DXL_PH2_INBOUND_PARSER_ERROR_CTX_STILL_RESET;
+                        break;
                 case DXL_PH2_INBOUND_PARSER_STATE_LOOK_HEADER:
                         ret = parser_handle_look_header(parser_ctx, inbound_buf, inbound_buf_len, 
                                                        last_idx_fed, out_pkt);
                         if (ret != DXL_PH2_INBOUND_PARSER_NEED_MORE) break;
-                        /* Fall through to next state if header found */
+                        /* fall through to next state if header found */
 
                 case DXL_PH2_INBOUND_PARSER_STATE_PKT_HEADER_FOUND:
                         ret = parser_handle_pkt_header_found(parser_ctx, inbound_buf, inbound_buf_len, 
                                                             pkt_len_estimate, last_idx_fed, out_pkt);
                         if (ret != DXL_PH2_INBOUND_PARSER_NEED_MORE) break;
-                        /* Fall through to next state if header complete */
+                        /* fall through to next state if header and starting bytes complete */
 
                 case DXL_PH2_INBOUND_PARSER_STATE_FEEDING:
                         ret = parser_handle_feeding(parser_ctx, inbound_buf, inbound_buf_len, 
@@ -423,7 +480,7 @@ dxl_ph2_inbound_parser_return_t dxl_ph2_parse_rx(
                         break;
 
                 default:
-                        ret = DXL_PH2_INBOUND_PARSER_ERROR;
+                        ret = ret;
         }
 
         return ret;
