@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.2.0
+ * Version : 0.3.0
  * ================================================================================================
  * License
  * -------
@@ -42,6 +42,7 @@
  * 0.1.1 | 2026-08-06 | Refactor
  * 0.1.2 | 2026-08-06 | Comments
  * 0.2.0 | 2026-08-06 | API expansion, and ping wrapper function
+ * 0.3.0 | 2026-08-07 | API redesign and ping
  * ================================================================================================
  */
 
@@ -166,10 +167,10 @@ jdxl_ph2_outbound_builder_return_t jdxl_ph2_build_outbound(
 /* Inbound (RX) packet parser */
 jdxl_ph2_inbound_parser_return_t jdxl_ph2_parse_inbound(
         jdxl_ph2_inbound_parser_ctx_t* parser_ctx,
-        uint8_t*                       inbound_buf,
-        size_t                         inbound_buf_len,
-        size_t                         pkt_len_estimate,
-        uint8_t                        skip_stuffing,
+        const uint8_t*                 inbound_buf,
+        const size_t                   inbound_buf_len,
+        const size_t                   pkt_len_estimate,
+        const uint8_t                  skip_stuffing,
         size_t*                        last_idx_fed,
         jdxl_ph2_pkt_t*                out_pkt
 );
@@ -189,22 +190,35 @@ jdxl_ph2_inbound_parser_return_t jdxl_ph2_parse_inbound(
  */
 uint16_t jdxl_ph2_estimate_worst_case_body_len(uint16_t body_len);
 
-// TODO: jdxl_ph2_inst_ping();
-// TODO: jdxl_ph2_inst_ping_broadcast();
-// TODO: jdxl_ph2_inst_read();
-// TODO: jdxl_ph2_inst_write();
-// TODO: jdxl_ph2_inst_regwrite();
-// TODO: jdxl_ph2_inst_action();
-// TODO: jdxl_ph2_inst_ping_broadcast();
-// TODO: jdxl_ph2_inst_factory_reset();
-// TODO: jdxl_ph2_inst_reboot();
-// TODO: jdxl_ph2_inst_clear();
-// TODO: jdxl_ph2_inst_ctrl_tbl_bkp();
-// TODO: jdxl_ph2_inst_sync_read();
-// TODO: jdxl_ph2_inst_sync_write();
-// TODO: jdxl_ph2_inst_fast_sync_read();
-// TODO: jdxl_ph2_inst_bulk_read();
-// TODO: jdxl_ph2_inst_bulk_write();
-// TODO: jdxl_ph2_inst_fast_sync_write();
+typedef struct {
+        jdxl_ph2_pkt_t outbound_pkt;
+        jdxl_ph2_pkt_t inbound_pkt;
+
+        struct {
+                uint8_t prev_inst;
+                jdxl_ph2_inbound_parser_ctx_t in_parser_ctx;
+                size_t last_idx_fed;
+        } internals;
+} jdxl_ph2_ctx_t;
+
+uint8_t jdxl_ph2_build_ping2(jdxl_ph2_ctx_t* ctx, const uint8_t id);
+
+// TODO: jdxl_ph2_build_ping2_broadcast();
+// TODO: jdxl_ph2_build_read2();
+// TODO: jdxl_ph2_build_write2();
+// TODO: jdxl_ph2_build_reg_write2();
+// TODO: jdxl_ph2_build_action2();
+// TODO: jdxl_ph2_build_factory_reset2();
+// TODO: jdxl_ph2_build_reboot2();
+// TODO: jdxl_ph2_build_clear2();
+// TODO: jdxl_ph2_build_ctrl_tbl_bkp2();
+// TODO: jdxl_ph2_build_sync_read2();
+// TODO: jdxl_ph2_build_sync_write2();
+// TODO: jdxl_ph2_build_fast_sync_read2();
+// TODO: jdxl_ph2_build_bulk_read2();
+// TODO: jdxl_ph2_build_bulk_write2();
+// TODO: jdxl_ph2_build_fast_sync_write2();
+
+uint8_t jdxl_ph2_feed(jdxl_ph2_ctx_t* ctx, const uint8_t* in_buf, const size_t in_buf_len);
 
 #endif

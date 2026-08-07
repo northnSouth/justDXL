@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.2.0
+ * Version : 0.3.0
  * ================================================================================================
  * License
  * -------
@@ -42,6 +42,7 @@
  * 0.1.1 | 2026-08-06 | Refactor
  * 0.1.2 | 2026-08-06 | Comments
  * 0.2.0 | 2026-08-06 | API expansion, and ping wrapper function
+ * 0.3.0 | 2026-08-07 | API redesign and ping
  * ================================================================================================
  */
 
@@ -241,7 +242,7 @@ static void rem_stuffing(uint8_t *packet)
 }
 
 /* TX packet builder */
-jdxl_ph2_outbound_builder_return_t dxl_ph2_build_outbound(
+jdxl_ph2_outbound_builder_return_t jdxl_ph2_build_outbound(
         const uint8_t   id,
         const uint8_t   inst,
         const uint8_t   param[],
@@ -272,7 +273,8 @@ jdxl_ph2_outbound_builder_return_t dxl_ph2_build_outbound(
         out_pkt->dxl_buffer[5] = len_l;
         out_pkt->dxl_buffer[6] = len_h;
         out_pkt->dxl_buffer[7] = inst;
-        memcpy(&out_pkt->dxl_buffer[JDXL_PH2_PKT_IDX_INSTRUCTION + 1], param, param_len);
+        if (param_len > 0)
+                memcpy(&out_pkt->dxl_buffer[JDXL_PH2_PKT_IDX_INSTRUCTION + 1], param, param_len);
 
         if (add_stuffing(out_pkt->dxl_buffer)) 
                 return JDXL_PH2_OUTBOUND_BUILDER_ERROR_STUFFING_TOO_LONG;
@@ -298,8 +300,8 @@ jdxl_ph2_outbound_builder_return_t dxl_ph2_build_outbound(
 /* Handle LOOK_HEADER state */
 static jdxl_ph2_inbound_parser_return_t parser_handle_look_header(
         jdxl_ph2_inbound_parser_ctx_t* parser_ctx,
-        uint8_t* inbound_buf,
-        size_t inbound_buf_len,
+        const uint8_t* inbound_buf,
+        const size_t inbound_buf_len,
         size_t* last_idx_fed,
         jdxl_ph2_pkt_t* out_pkt
 ){
@@ -354,9 +356,9 @@ static jdxl_ph2_inbound_parser_return_t validate_pkt_start_byte(
 /* Handle PKT_HEADER_FOUND state, bytes after header before params */
 static jdxl_ph2_inbound_parser_return_t parser_handle_pkt_header_found(
         jdxl_ph2_inbound_parser_ctx_t* parser_ctx,
-        uint8_t* inbound_buf,
-        size_t inbound_buf_len,
-        size_t pkt_len_estimate,
+        const uint8_t* inbound_buf,
+        const size_t inbound_buf_len,
+        const size_t pkt_len_estimate,
         size_t* last_idx_fed,
         jdxl_ph2_pkt_t* out_pkt
 ){
@@ -377,6 +379,8 @@ static jdxl_ph2_inbound_parser_return_t parser_handle_pkt_header_found(
                 (*last_idx_fed)++;
 
                 if (parser_ctx->pkt_start_counter >= 5) {
+                        parser_ctx->pkt_start_counter = 0;
+                        
                         uint16_t body_len = (uint16_t)out_pkt->dxl_buffer[JDXL_PH2_PKT_IDX_LENGTH_L] 
                                             | ((uint16_t)out_pkt->dxl_buffer[JDXL_PH2_PKT_IDX_LENGTH_H] << 8);
                         uint32_t pkt_len = body_len + JDXL_PH2_PKT_IDX_INSTRUCTION;
@@ -388,7 +392,6 @@ static jdxl_ph2_inbound_parser_return_t parser_handle_pkt_header_found(
                                 return JDXL_PH2_INBOUND_PARSER_ERROR_NOT_A_STATUS_PKT;
                         }
 
-                        parser_ctx->pkt_start_counter = 0;
                         parser_ctx->pkt_body_counter = body_len - 1;  /* minus INST */
                         parser_ctx->state = JDXL_PH2_INBOUND_PARSER_STATE_FEEDING;
                         return JDXL_PH2_INBOUND_PARSER_NEED_MORE;
@@ -401,9 +404,9 @@ static jdxl_ph2_inbound_parser_return_t parser_handle_pkt_header_found(
 /* Handle FEEDING state, param bytes except INST since it is validated in HEADER_FOUND handler */
 static jdxl_ph2_inbound_parser_return_t parser_handle_feeding(
         jdxl_ph2_inbound_parser_ctx_t* parser_ctx,
-        uint8_t* inbound_buf,
-        size_t inbound_buf_len,
-        uint8_t skip_stuffing,
+        const uint8_t* inbound_buf,
+        const size_t inbound_buf_len,
+        const uint8_t skip_stuffing,
         size_t* last_idx_fed,
         jdxl_ph2_pkt_t* out_pkt
 ){
@@ -438,12 +441,12 @@ static jdxl_ph2_inbound_parser_return_t parser_handle_feeding(
 }
 
 /* RX parser dispatcher */
-jdxl_ph2_inbound_parser_return_t dxl_ph2_parse_inbound(
+jdxl_ph2_inbound_parser_return_t jdxl_ph2_parse_inbound(
         jdxl_ph2_inbound_parser_ctx_t* parser_ctx,
-        uint8_t* inbound_buf,
-        size_t inbound_buf_len,
-        size_t pkt_len_estimate,
-        uint8_t skip_stuffing,
+        const uint8_t* inbound_buf,
+        const size_t inbound_buf_len,
+        const size_t pkt_len_estimate,
+        const uint8_t skip_stuffing,
         size_t* last_idx_fed,
         jdxl_ph2_pkt_t* out_pkt
 )
@@ -494,4 +497,50 @@ uint16_t jdxl_ph2_estimate_worst_case_body_len(uint16_t body_len)
         uint32_t estimate = (uint32_t)body_len + extra;
 
         return (estimate > UINT16_MAX) ? UINT16_MAX : (uint16_t)estimate;
+}
+
+uint8_t jdxl_ph2_build_ping2(jdxl_ph2_ctx_t *ctx, const uint8_t id)
+{
+        if (id == 0xFE) return 1; //TODO: proper error prop 
+
+        jdxl_ph2_outbound_builder_return_t build_ret;
+        memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
+        
+        build_ret = jdxl_ph2_build_outbound(
+                id, JDXL_PH2_DXL_INST_PING, 
+                NULL, 0, &ctx->outbound_pkt
+        );
+
+        if (build_ret != JDXL_PH2_OUTBOUND_BUILDER_SUCCESS) return 1; //TODO: proper error prop
+
+        return 0;
+}
+
+// ================================================================================================
+
+uint8_t jdxl_ph2_feed(jdxl_ph2_ctx_t *ctx, const uint8_t *in_buf, const size_t in_buf_len)
+{
+        jdxl_ph2_inbound_parser_return_t parse_ret;
+
+        if (ctx->internals.in_parser_ctx.state == JDXL_PH2_INBOUND_PARSER_STATE_RESET)
+        {
+                memset(&ctx->inbound_pkt, 0, sizeof(ctx->inbound_pkt));
+        }
+
+        parse_ret = jdxl_ph2_parse_inbound(
+                &ctx->internals.in_parser_ctx,
+                in_buf, in_buf_len, 
+                JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION, //FIXME: estimate correctly
+                1, &ctx->internals.last_idx_fed, 
+                &ctx->inbound_pkt
+        );
+
+        if (parse_ret == JDXL_PH2_INBOUND_PARSER_NEED_MORE) return 0;
+
+        if (parse_ret != JDXL_PH2_INBOUND_PARSER_SUCCESS) {
+                ctx->internals.in_parser_ctx.state = JDXL_PH2_INBOUND_PARSER_STATE_RESET;
+                return 1; //TODO: proper error prop
+        }
+
+        return 0;
 }
