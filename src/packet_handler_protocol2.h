@@ -83,7 +83,7 @@ static const uint8_t JDXL_PH2_PKT_HEADER_PATTERN[3] = {
 };
 
 /* Protocol 2.0 instructions */
-/* Enum for code clarity and type safety */
+/* CTRL_TABLE_BACKUP not implemented by the official SDK */
 enum jdxl_ph2_dxl_inst {
         JDXL_PH2_DXL_INST_PING = 0x01,
         JDXL_PH2_DXL_INST_READ = 0x02,
@@ -93,7 +93,7 @@ enum jdxl_ph2_dxl_inst {
         JDXL_PH2_DXL_INST_FACTORY_RESET = 0x06,
         JDXL_PH2_DXL_INST_REBOOT = 0x08,
         JDXL_PH2_DXL_INST_CLEAR = 0x10,
-        JDXL_PH2_DXL_INST_CTRL_TABLE_BACKUP = 0x20,
+        // JDXL_PH2_DXL_INST_CTRL_TABLE_BACKUP = 0x20,
         JDXL_PH2_DXL_INST_STATUS = 0x55,
         JDXL_PH2_DXL_INST_SYNC_READ = 0x82,
         JDXL_PH2_DXL_INST_SYNC_WRITE = 0x83,
@@ -113,6 +113,18 @@ typedef enum {
         JDXL_PH2_DXL_ERR_DATA_LIMIT_ERROR,
         JDXL_PH2_DXL_ERR_ACCESS_ERROR
 } jdxl_ph2_dxl_err_t;
+
+/* Protocol 2.0 special bytes */
+typedef enum {
+        JDXL_PH2_DXL_FACTORY_RESET_ALL = 0xFF,
+        JDXL_PH2_DXL_FACTORY_RESET_ALL_BUT_ID = 0x01,
+        JDXL_PH2_DXL_FACTORY_RESET_ALL_BUT_ID_AND_BAUDRATE = 0x02
+} jdxl_ph2_dxl_factory_reset_t;
+
+typedef enum {
+        JDXL_PH2_DXL_CLEAR_POS = 0x01,
+        JDXL_PH2_DXL_CLEAR_ERR
+} jdxl_ph2_dxl_clear_t;
 
 /* Generic packet struct */
 typedef struct {
@@ -201,23 +213,21 @@ typedef struct {
         } internals;
 } jdxl_ph2_ctx_t;
 
-uint8_t jdxl_ph2_build_ping2(jdxl_ph2_ctx_t* ctx, const uint8_t id);
-
-// TODO: jdxl_ph2_build_ping2_broadcast();
-// TODO: jdxl_ph2_build_read2();
-// TODO: jdxl_ph2_build_write2();
-// TODO: jdxl_ph2_build_reg_write2();
-// TODO: jdxl_ph2_build_action2();
-// TODO: jdxl_ph2_build_factory_reset2();
-// TODO: jdxl_ph2_build_reboot2();
-// TODO: jdxl_ph2_build_clear2();
-// TODO: jdxl_ph2_build_ctrl_tbl_bkp2();
-// TODO: jdxl_ph2_build_sync_read2();
-// TODO: jdxl_ph2_build_sync_write2();
-// TODO: jdxl_ph2_build_fast_sync_read2();
-// TODO: jdxl_ph2_build_bulk_read2();
-// TODO: jdxl_ph2_build_bulk_write2();
-// TODO: jdxl_ph2_build_fast_sync_write2();
+uint8_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t* ctx, const uint8_t id);
+// TODO: jdxl_ph2_build_ping_broadcast();
+uint8_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint16_t data_len);
+uint8_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
+uint8_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
+uint8_t jdxl_ph2_build_action(jdxl_ph2_ctx_t *ctx, const uint8_t id);
+uint8_t jdxl_ph2_build_factory_reset(jdxl_ph2_ctx_t *ctx, const uint8_t id, jdxl_ph2_dxl_factory_reset_t byte);
+uint8_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t id);
+uint8_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t id, const jdxl_ph2_dxl_clear_t clear_mode);
+// TODO: jdxl_ph2_build_sync_read();
+// TODO: jdxl_ph2_build_sync_write();
+// TODO: jdxl_ph2_build_fast_sync_read();
+// TODO: jdxl_ph2_build_bulk_read();
+// TODO: jdxl_ph2_build_bulk_write();
+// TODO: jdxl_ph2_build_fast_sync_write();
 
 uint8_t jdxl_ph2_feed(jdxl_ph2_ctx_t* ctx, const uint8_t* in_buf, const size_t in_buf_len);
 
