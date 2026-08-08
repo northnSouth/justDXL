@@ -59,6 +59,7 @@
  * can logically handle as of the time where this packet handler is written. 
  */
 #define JDXL_PH2_PKT_MAX_LEN 256
+#define JDXL_PH2_DATA_WRITE_MAX_LEN 8
 
 /* Protocol 2.0 packet structure */
 #define JDXL_PH2_PKT_IDX_HEADER0     0
@@ -115,6 +116,8 @@ typedef enum {
 } jdxl_ph2_dxl_err_t;
 
 /* Protocol 2.0 special bytes */
+#define JDXL_PH2_DXL_BROADCAST_ID 0xFE
+
 typedef enum {
         JDXL_PH2_DXL_FACTORY_RESET_ALL = 0xFF,
         JDXL_PH2_DXL_FACTORY_RESET_ALL_BUT_ID = 0x01,
@@ -208,10 +211,18 @@ typedef struct {
 
         struct {
                 uint8_t prev_inst;
+                uint8_t expected_packets;
                 jdxl_ph2_inbound_parser_ctx_t in_parser_ctx;
                 size_t last_idx_fed;
         } internals;
 } jdxl_ph2_ctx_t;
+
+typedef struct {
+        uint8_t id;
+        uint8_t data[JDXL_PH2_DATA_WRITE_MAX_LEN];
+} jdxl_ph2_sync_w_param_t;
+
+//TODO: give these functions enum returns
 
 uint8_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t* ctx, const uint8_t id);
 // TODO: jdxl_ph2_build_ping_broadcast();
@@ -222,8 +233,8 @@ uint8_t jdxl_ph2_build_action(jdxl_ph2_ctx_t *ctx, const uint8_t id);
 uint8_t jdxl_ph2_build_factory_reset(jdxl_ph2_ctx_t *ctx, const uint8_t id, jdxl_ph2_dxl_factory_reset_t byte);
 uint8_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t id);
 uint8_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t id, const jdxl_ph2_dxl_clear_t clear_mode);
-// TODO: jdxl_ph2_build_sync_read();
-// TODO: jdxl_ph2_build_sync_write();
+uint8_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
+uint8_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t addr, const uint16_t data_len, jdxl_ph2_sync_w_param_t write_param[], uint8_t write_param_len);
 // TODO: jdxl_ph2_build_fast_sync_read();
 // TODO: jdxl_ph2_build_bulk_read();
 // TODO: jdxl_ph2_build_bulk_write();
