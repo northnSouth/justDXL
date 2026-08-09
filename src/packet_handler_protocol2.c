@@ -532,11 +532,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t *ctx, const uint8_t i
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_id)
+jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_count)
 {
         jdxl_ph2_build_return_t ret;
 
-        if (target_servo_id > 253) {
+        if (target_servo_count > 253) {
                 ret.build_inst = JDXL_PH2_BUILD_INST_ERR_IMPOSSIBLE_SERVO_COUNT;
                 return ret;
         }
@@ -556,7 +556,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_PING;
-        ctx->internals.expected_packets = target_servo_id;
+        ctx->internals.expected_packets = target_servo_count;
         
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -606,7 +606,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t 
         jdxl_ph2_build_return_t ret;
 
         // minus CRC
-        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION - 2] = {
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {
                 U16_TO_LOWBYTE(addr),
                 U16_TO_HIGHBYTE(addr)
         };
@@ -645,7 +645,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint
         jdxl_ph2_build_return_t ret;
 
         // minus CRC
-        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION - 2] = {
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {
                 U16_TO_LOWBYTE(addr),
                 U16_TO_HIGHBYTE(addr)
         };
@@ -823,7 +823,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint
         }
 
         // minus CRC
-        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION - 2] = {
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {
                 U16_TO_LOWBYTE(addr),
                 U16_TO_HIGHBYTE(addr),
                 U16_TO_LOWBYTE(data_len),
@@ -869,14 +869,19 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t 
         }
 
         // minus CRC
-        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION - 2] = {
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {
                 U16_TO_LOWBYTE(addr),
                 U16_TO_HIGHBYTE(addr),
                 U16_TO_LOWBYTE(data_len),
                 U16_TO_HIGHBYTE(data_len)
         };
 
-        uint8_t params_chunk = data_len + 1; // id + data bytes
+        uint32_t params_chunk = data_len + 1; // id + data bytes
+
+        if (data_len > JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN) {
+                ret.build_inst = JDXL_PH2_BUILD_INST_ERR_WRITE_DATA_LEN_TOO_LONG;
+                return ret;
+        }
 
         if ((params_chunk * write_param_len) > (sizeof(param) - 4)) {
                 ret.build_inst = JDXL_PH2_BUILD_INST_ERR_PARAM_TOO_LONG;
@@ -928,7 +933,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const
         }
 
         // minus CRC
-        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION - 2] = {
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {
                 U16_TO_LOWBYTE(addr),
                 U16_TO_HIGHBYTE(addr),
                 U16_TO_LOWBYTE(data_len),
@@ -946,7 +951,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const
         memcpy(param, ids, ids_len);
         
         build_ret = jdxl_ph2_build_outbound(
-                JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_SYNC_READ, 
+                JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_FAST_SYNC_READ, 
                 param, 4 + ids_len, &ctx->outbound_pkt
         );
 
@@ -974,7 +979,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_b
         }
 
         // minus CRC
-        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION - 2] = {0};
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {0};
 
         // ID, L_ADDR, H_ADDR, L_DATA_LEN, H_DATA_LEN
         if ((5 * read_param_len) > sizeof(param)) {
@@ -1042,10 +1047,10 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_
         }
 
         // minus CRC
-        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION - 2] = {0};
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {0};
 
         // data_len counter for bounds check
-        size_t data_len_count;
+        size_t data_len_count = 0;
 
         // 256-bit presence bitmap for duplicate ID check
         uint32_t seen[8] = {0};
@@ -1054,6 +1059,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_
                 
                 if (id > 252) {
                         ret.build_inst = JDXL_PH2_BUILD_INST_ERR_INVALID_ID;
+                        return ret;
+                }
+
+                if (write_param[i].data_len > JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN) {
+                        ret.build_inst = JDXL_PH2_BUILD_INST_ERR_WRITE_DATA_LEN_TOO_LONG;
                         return ret;
                 }
                 
@@ -1120,7 +1130,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_
         }
 
         // minus CRC
-        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION - 2] = {0};
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {0};
 
         // ID, L_ADDR, H_ADDR, L_DATA_LEN, H_DATA_LEN
         if ((5 * read_param_len) > sizeof(param)) {

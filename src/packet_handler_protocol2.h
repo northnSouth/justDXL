@@ -266,7 +266,8 @@ typedef enum {
         JDXL_PH2_BUILD_INST_ERR_IMPOSSIBLE_SERVO_COUNT,
         JDXL_PH2_BUILD_INST_ERR_INVALID_MODE,
         JDXL_PH2_BUILD_INST_ERR_PARAM_CANNOT_BE_ZERO,
-        JDXL_PH2_BUILD_INST_ERR_PARAM_ID_CANNOT_BE_DUPLICATE
+        JDXL_PH2_BUILD_INST_ERR_PARAM_ID_CANNOT_BE_DUPLICATE,
+        JDXL_PH2_BUILD_INST_ERR_WRITE_DATA_LEN_TOO_LONG
 } jdxl_ph2_build_inst_return_t;
 
 /* Protocol 2.0 packet handler build return codes */
@@ -276,7 +277,7 @@ typedef struct {
 } jdxl_ph2_build_return_t;
 
 jdxl_ph2_build_return_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t* ctx, const uint8_t id);
-jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_id);
+jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_count);
 jdxl_ph2_build_return_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint16_t data_len);
 jdxl_ph2_build_return_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
 jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
