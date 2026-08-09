@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.4.0
+ * Version : 0.4.1
  * ================================================================================================
  * License
  * -------
@@ -44,6 +44,7 @@
  * 0.2.0 | 2026-08-06 | API expansion, and ping wrapper function
  * 0.3.0 | 2026-08-07 | API redesign and ping
  * 0.4.0 | 2026-08-09 | API completion #1, untested. License fix
+ * 0.4.1 | 2026-08-09 | API completion #2, tested virtually. Implemented packet len estimation
  * ================================================================================================
  */
 
@@ -525,7 +526,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t *ctx, const uint8_t i
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_PING;
-        ctx->internals.expected_packets = 1;
+
+        /* Ping status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | P1 | P2 | P3 | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#ping-0x01
+         */
+        ctx->internals.expected_packet_count = 1;
+        ctx->internals.expected_packets_param_len[0] = 7;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -556,8 +563,22 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_PING;
-        ctx->internals.expected_packets = target_servo_count;
-        
+
+        /* Ping status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | P1 | P2 | P3 | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#ping-0x01
+         */
+        ctx->internals.expected_packet_count = target_servo_count;
+
+        if (ctx->internals.expected_packet_count > JDXL_PH2_MAX_STATUS_PKT_COUNT) {
+                ret.build_inst = JDXL_PH2_BUILD_INST_ERR_EXPECTED_STATUS_PKT_TOO_MANY;
+                ret.tx_builder = build_ret;
+                return ret;
+        }
+
+        for (uint8_t i = 0; i < ctx->internals.expected_packet_count; i++)
+                ctx->internals.expected_packets_param_len[i] = 7;
+
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
         return ret;
@@ -594,7 +615,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t i
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_READ;
-        ctx->internals.expected_packets = 1;
+
+        /* Read status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | Pn... | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#read-0x02
+         */
+        ctx->internals.expected_packet_count = 1;
+        ctx->internals.expected_packets_param_len[0] = 4 + data_len;
         
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -633,7 +660,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t 
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_WRITE;
-        ctx->internals.expected_packets = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+        
+        /* Write status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#write-0x03
+         */
+        ctx->internals.expected_packet_count = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+        ctx->internals.expected_packets_param_len[0] = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 4;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -672,7 +705,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_REG_WRITE;
-        ctx->internals.expected_packets = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+        
+        /* Reg Write status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#reg-write-0x04
+         */
+        ctx->internals.expected_packet_count = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+        ctx->internals.expected_packets_param_len[0] = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 4;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -698,7 +737,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_action(jdxl_ph2_ctx_t *ctx, const uint8_t
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_ACTION;
-        ctx->internals.expected_packets = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+
+        /* Action status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#action-0x05
+         */
+        ctx->internals.expected_packet_count = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+        ctx->internals.expected_packets_param_len[0] = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 4;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -736,7 +781,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(jdxl_ph2_ctx_t *ctx, const 
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_FACTORY_RESET;
-        ctx->internals.expected_packets = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+
+         /* Factory reset status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#factory-reset-0x06
+         */
+        ctx->internals.expected_packet_count = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+        ctx->internals.expected_packets_param_len[0] = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 4;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -762,7 +813,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_REBOOT;
-        ctx->internals.expected_packets = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+
+        /* Reboot status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#reboot-0x08
+         */
+        ctx->internals.expected_packet_count = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+        ctx->internals.expected_packets_param_len[0] = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 4;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -806,7 +863,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t 
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_CLEAR;
-        ctx->internals.expected_packets = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+
+        /* Clear status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#clear-0x10
+         */
+        ctx->internals.expected_packet_count = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 1;
+        ctx->internals.expected_packets_param_len[0] = (id == JDXL_PH2_DXL_BROADCAST_ID) ? 0 : 4;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -852,7 +915,23 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_SYNC_READ;
-        ctx->internals.expected_packets = ids_len;
+        
+        /* Sync read status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | Pn... | CRC 1 | CRC 2
+         * ids_len times with different IDs
+         * status packets come in instruction order, guaranteed by protocol.
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#sync-read-0x82
+         */
+        ctx->internals.expected_packet_count = ids_len;
+        
+        if (ctx->internals.expected_packet_count > JDXL_PH2_MAX_STATUS_PKT_COUNT) {
+                ret.build_inst = JDXL_PH2_BUILD_INST_ERR_EXPECTED_STATUS_PKT_TOO_MANY;
+                ret.tx_builder = build_ret;
+                return ret;
+        }
+
+        for (uint8_t i = 0; i < ctx->internals.expected_packet_count; i++)
+                ctx->internals.expected_packets_param_len[i] = data_len + 4;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -916,7 +995,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t 
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_SYNC_WRITE;
-        ctx->internals.expected_packets = 0;
+        ctx->internals.expected_packet_count = 0;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -962,7 +1041,19 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_FAST_SYNC_READ;
-        ctx->internals.expected_packets = 1;
+
+        /* Fast sync read status packet:
+         * H1 | H2 | H3 | RSRV | BROADCAST ID | LEN1 | LEN2 | INST | ERR | ID1 | Dn... | CRC 1 | CRC 2
+         * then,
+         * ERR | IDx | Dn... | CRC 1 | CRC 2
+         * ids_len - 1 times with different IDs
+         * CRC of the whole sequence is at the last 2 bytes of the last status packet, 
+         * guaranteed by protocol.
+         * status packets come in instruction order, guaranteed by protocol.
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#fast-sync-read-0x8a
+         */
+        ctx->internals.expected_packet_count = 1;
+        ctx->internals.expected_packets_param_len[0] = 1 + ((2 + data_len + 2) * ids_len);
         
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -1030,7 +1121,23 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_b
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_BULK_READ;
-        ctx->internals.expected_packets = read_param_len;
+
+        /* Bulk read status packet:
+         * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | Pn... | CRC 1 | CRC 2
+         * read_param_len times with different IDs and data lengths
+         * status packets come in instruction order, guaranteed by protocol.
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#bulk-read-0x92
+         */
+        ctx->internals.expected_packet_count = read_param_len;
+        
+        if (ctx->internals.expected_packet_count > JDXL_PH2_MAX_STATUS_PKT_COUNT) {
+                ret.build_inst = JDXL_PH2_BUILD_INST_ERR_EXPECTED_STATUS_PKT_TOO_MANY;
+                ret.tx_builder = build_ret;
+                return ret;
+        }
+
+        for (uint8_t i = 0; i < ctx->internals.expected_packet_count; i++)
+                ctx->internals.expected_packets_param_len[i] = read_param[i].data_len + 4;
         
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -1113,7 +1220,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_BULK_WRITE;
-        ctx->internals.expected_packets = 0;
+        ctx->internals.expected_packet_count = 0;
         
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -1181,7 +1288,21 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_
         }
 
         ctx->internals.prev_inst = JDXL_PH2_DXL_INST_FAST_BULK_READ;
-        ctx->internals.expected_packets = 1;
+
+        /* Fast Bulk Read status packet:
+         * H1 | H2 | H3 | RSRV | BROADCAST ID | LEN1 | LEN2 | INST | ERR | ID1 | Pn... | CRC1 | CRC2
+         * then,
+         * ERR | IDx | Pn... | CRC1 | CRC2
+         * read_param_len - 1 times, each with different IDs data lengths
+         * CRC of the whole sequence is at the last 2 bytes of the last status packet, guaranteed by protocol.
+         * status packets come in instruction order, guaranteed by protocol.
+         * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#fast-bulk-read-0x9a
+         */
+        ctx->internals.expected_packet_count = 1;
+        ctx->internals.expected_packets_param_len[0] = 1;
+        for (uint8_t i = 0; i < read_param_len; i++) {
+                ctx->internals.expected_packets_param_len[0] += (2 + read_param[i].data_len + 2);
+        }
         
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
         ret.tx_builder = JDXL_PH2_OUTBOUND_BUILDER_SUCCESS;
@@ -1194,7 +1315,7 @@ jdxl_ph2_feed_return_t jdxl_ph2_feed(jdxl_ph2_ctx_t *ctx, const uint8_t *in_buf,
 {
         jdxl_ph2_feed_return_t ret;
 
-        if (ctx->internals.expected_packets == 0 || ctx->internals.prev_inst == 0) {
+        if (ctx->internals.expected_packet_count == 0 || ctx->internals.prev_inst == 0) {
                 ret.feed_buf = JDXL_PH2_FEED_BUF_SUCCESS_DONE;
                 return ret;
         };
@@ -1209,11 +1330,15 @@ jdxl_ph2_feed_return_t jdxl_ph2_feed(jdxl_ph2_ctx_t *ctx, const uint8_t *in_buf,
         uint8_t skip_stuffing = (ctx->internals.prev_inst == JDXL_PH2_DXL_INST_FAST_SYNC_READ
                                  || ctx->internals.prev_inst == JDXL_PH2_DXL_INST_FAST_BULK_READ
                                 ) ? 1 : 0;
+        
+        size_t pkt_len_estimate = jdxl_ph2_estimate_worst_case_body_len(
+                ctx->internals.expected_packets_param_len[ctx->internals.expected_packet_idx]
+        ) + JDXL_PH2_PKT_IDX_INSTRUCTION;
 
         parse_ret = jdxl_ph2_parse_inbound(
                 &ctx->internals.in_parser_ctx,
                 in_buf, in_buf_len, 
-                JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION, //FIXME: estimate correctly
+                pkt_len_estimate,
                 skip_stuffing, &ctx->internals.last_idx_fed, 
                 &ctx->inbound_pkt
         );
@@ -1236,13 +1361,21 @@ jdxl_ph2_feed_return_t jdxl_ph2_feed(jdxl_ph2_ctx_t *ctx, const uint8_t *in_buf,
          * code must process one packet at a time, and later on feed for more packets.
          * //TODO: someone please design a better mechanism
          */
-        if (--ctx->internals.expected_packets > 0) {
+        if (--ctx->internals.expected_packet_count > 0) {
+                ctx->internals.expected_packet_idx++;
+
                 ret.feed_buf = JDXL_PH2_FEED_BUF_SUCCESS_PACKET_READY;
                 ret.rx_parser = parse_ret;
                 return ret;
         };
 
         ctx->internals.prev_inst = 0;
+        memset(
+                ctx->internals.expected_packets_param_len, 0, 
+                sizeof(ctx->internals.expected_packets_param_len)
+        );
+        ctx->internals.expected_packet_count = 0;
+        ctx->internals.expected_packet_idx = 0;
 
         ret.feed_buf = JDXL_PH2_FEED_BUF_SUCCESS_DONE;
         ret.rx_parser = parse_ret;

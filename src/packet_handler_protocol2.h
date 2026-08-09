@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.4.0
+ * Version : 0.4.1
  * ================================================================================================
  * License
  * -------
@@ -44,7 +44,23 @@
  * 0.2.0 | 2026-08-06 | API expansion, and ping wrapper function
  * 0.3.0 | 2026-08-07 | API redesign and ping
  * 0.4.0 | 2026-08-09 | API completion #1, untested. License fix
+ * 0.4.1 | 2026-08-09 | API completion #2, tested virtually. Implemented packet len estimation
  * ================================================================================================
+ */
+
+//FIXME #1:
+/* This is some cool shit where if requested data length is equal to UINT16_MAX,
+ * or 0xFFFF, the protocol faults there because LEN1 and LEN2 can only store up to
+ * UINT16_MAX including CRC1 (low), CRC2 (high), ERR, and INST also. Now the problem
+ * should be obvious: data_len + 3 + ERR wraps around to 4.
+ *
+ * This also implies the possibility of issues arising from the packet length limit, so
+ * in fixing this issue, the broader protocol usage must be considered.
+ *
+ * Idk if I have a say on how to fix this, but I guess it is a very niche edge case or
+ * even a protocol limit, so instead of limitting maximum requested data_len, I'll just
+ * increase the packet length (param length) pool to uint32_t. Perhaps I'll guard this 
+ * in the future.
  */
 
 #ifndef PACKET_HANDLER_PROTOCOL2_H
@@ -57,14 +73,27 @@
 // Protocol area
 // ================================================================================================
 
-/* This defines the maximum length of a single packet that can be processed. It shall be adjusted
+/* This defines the maximum length of a single packet that can be processed. It should be adjusted
  * to the memory constraints of the target application or can be set to:
- *         UINT16_MAX + PKT_IDX_PARAMETER0
+ *         UINT16_MAX + PKT_IDX_INSTRUCTION
  * which is the maximum length of a packet including its headers that the DYNAMIXEL Protocol 2.0
- * can logically handle as of the time where this packet handler is written. 
+ * can logically handle as of the time where this packet handler is written.
+ * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#length
  */
 #define JDXL_PH2_PKT_MAX_LEN (256)
+/* This defines the maximum length of the data written by Sync Write and Bulk Write instructions at
+ * a time. Generally, this should not be bigger than your application's requirements and you should
+ * pay attention to the worst-case cumulated packet length value of said instructions' usage or
+ * protocol limits-related issues may arise.
+ */
 #define JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN (8)
+/* This defines the maximum count of status packets received at a time. It should not be more than
+ * the max possible valid ID range count (253) since it's impossible for the protocol to handle
+ * more than that in a single bus at a time. Your application's memory constraints should also be
+ * in consideration. 
+ * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#packet-id
+ */
+ #define JDXL_PH2_MAX_STATUS_PKT_COUNT (100)
 
 /* Protocol 2.0 packet structure */
 #define JDXL_PH2_PKT_IDX_HEADER0     0
@@ -230,7 +259,12 @@ typedef struct {
 
         struct {
                 uint8_t prev_inst;
-                uint8_t expected_packets;
+
+                // including CRC and INST
+                uint16_t expected_packets_param_len[JDXL_PH2_MAX_STATUS_PKT_COUNT];
+                uint8_t expected_packet_count;
+                uint8_t expected_packet_idx;
+
                 jdxl_ph2_inbound_parser_ctx_t in_parser_ctx;
                 size_t last_idx_fed;
         } internals;
@@ -267,7 +301,8 @@ typedef enum {
         JDXL_PH2_BUILD_INST_ERR_INVALID_MODE,
         JDXL_PH2_BUILD_INST_ERR_PARAM_CANNOT_BE_ZERO,
         JDXL_PH2_BUILD_INST_ERR_PARAM_ID_CANNOT_BE_DUPLICATE,
-        JDXL_PH2_BUILD_INST_ERR_WRITE_DATA_LEN_TOO_LONG
+        JDXL_PH2_BUILD_INST_ERR_WRITE_DATA_LEN_TOO_LONG,
+        JDXL_PH2_BUILD_INST_ERR_EXPECTED_STATUS_PKT_TOO_MANY
 } jdxl_ph2_build_inst_return_t;
 
 /* Protocol 2.0 packet handler build return codes */
