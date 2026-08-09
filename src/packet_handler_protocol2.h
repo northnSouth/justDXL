@@ -311,21 +311,102 @@ typedef struct {
         jdxl_ph2_outbound_builder_return_t tx_builder;
 } jdxl_ph2_build_return_t;
 
-jdxl_ph2_build_return_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t* ctx, const uint8_t id);
-jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_count);
-jdxl_ph2_build_return_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint16_t data_len);
-jdxl_ph2_build_return_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
-jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
-jdxl_ph2_build_return_t jdxl_ph2_build_action(jdxl_ph2_ctx_t *ctx, const uint8_t id);
-jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(jdxl_ph2_ctx_t *ctx, const uint8_t id, jdxl_ph2_dxl_factory_reset_t byte);
-jdxl_ph2_build_return_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t id);
-jdxl_ph2_build_return_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t id, const jdxl_ph2_dxl_clear_t clear_mode);
-jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
-jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t addr, const uint16_t data_len, jdxl_ph2_sync_w_param_t write_param[], uint8_t write_param_len);
-jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
-jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len);
-jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_bulk_w_param_t write_param[], uint8_t write_param_len);
-jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_ping(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t target_servo_count
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_read(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id,
+        const uint16_t addr,
+        const uint16_t data_len
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_write(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id,
+        const uint16_t addr,
+        const uint8_t data[],
+        const size_t data_len
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id,
+        const uint16_t addr,
+        const uint8_t data[],
+        const size_t data_len
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_action(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id,
+        jdxl_ph2_dxl_factory_reset_t byte
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_reboot(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_clear(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id,
+        const jdxl_ph2_dxl_clear_t clear_mode
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t ids[],
+        const uint8_t ids_len,
+        const uint16_t addr,
+        const uint16_t data_len
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(
+        jdxl_ph2_ctx_t* ctx,
+        uint16_t addr,
+        const uint16_t data_len,
+        jdxl_ph2_sync_w_param_t write_param[],
+        uint8_t write_param_len
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t ids[],
+        const uint8_t ids_len,
+        const uint16_t addr,
+        const uint16_t data_len
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(
+        jdxl_ph2_ctx_t* ctx,
+        jdxl_ph2_bulk_r_param_t read_param[],
+        uint8_t read_param_len
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(
+        jdxl_ph2_ctx_t* ctx,
+        jdxl_ph2_bulk_w_param_t write_param[],
+        uint8_t write_param_len
+);
+
+jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
+        jdxl_ph2_ctx_t* ctx,
+        jdxl_ph2_bulk_r_param_t read_param[],
+        uint8_t read_param_len
+);
 
 /* Protocol 2.0 packet handler feed buffer return codes */
 typedef enum {
@@ -341,6 +422,10 @@ typedef struct {
         jdxl_ph2_inbound_parser_return_t rx_parser;
 } jdxl_ph2_feed_return_t;
 
-jdxl_ph2_feed_return_t jdxl_ph2_feed(jdxl_ph2_ctx_t* ctx, const uint8_t* in_buf, const size_t in_buf_len);
+jdxl_ph2_feed_return_t jdxl_ph2_feed(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t* in_buf,
+        const size_t in_buf_len
+);
 
 #endif

@@ -313,7 +313,9 @@ static jdxl_ph2_inbound_parser_return_t parser_handle_look_header(
                 if (byte == expected) {
                         parser_ctx->pkt_header_seq_counter++;
                         
-                        if (parser_ctx->pkt_header_seq_counter == sizeof(JDXL_PH2_PKT_HEADER_PATTERN)) {
+                        if (parser_ctx->pkt_header_seq_counter 
+                            == sizeof(JDXL_PH2_PKT_HEADER_PATTERN)
+                        ) {
                                 /* header found, initialize packet buffer and move to next state */
                                 parser_ctx->pkt_header_seq_counter = 0;
                                 parser_ctx->state = JDXL_PH2_INBOUND_PARSER_STATE_PKT_HEADER_FOUND;
@@ -329,7 +331,9 @@ static jdxl_ph2_inbound_parser_return_t parser_handle_look_header(
                         }
                 } else {
                         /* reset counter, and check if current byte starts new sequence */
-                        parser_ctx->pkt_header_seq_counter = (byte == JDXL_PH2_PKT_HEADER_PATTERN[0]) ? 1 : 0;
+                        parser_ctx->pkt_header_seq_counter = (
+                                byte == JDXL_PH2_PKT_HEADER_PATTERN[0]
+                        ) ? 1 : 0;
                 }
         }
 
@@ -343,12 +347,14 @@ static jdxl_ph2_inbound_parser_return_t validate_pkt_start_byte(
 ){
         if (counter == 0) {
                 /* RSRVD must be 0x00 */
-                if (byte != JDXL_PH2_PKT_BYTE_RSRVD) return JDXL_PH2_INBOUND_PARSER_ERROR_INVALID_RSRVD;
+                if (byte != JDXL_PH2_PKT_BYTE_RSRVD) 
+                        return JDXL_PH2_INBOUND_PARSER_ERROR_INVALID_RSRVD;
         } else if (counter == 1) {
                 /* ID must not be 0xFF or 0xFD 
                  * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#packet-id
                  */
-                if (byte == 0xFF || byte == 0xFD) return JDXL_PH2_INBOUND_PARSER_ERROR_INVALID_ID;
+                if (byte == 0xFF || byte == 0xFD) 
+                        return JDXL_PH2_INBOUND_PARSER_ERROR_INVALID_ID;
         }
         
         return JDXL_PH2_INBOUND_PARSER_NEED_MORE;
@@ -369,7 +375,8 @@ static jdxl_ph2_inbound_parser_return_t parser_handle_pkt_header_found(
 
                 /* validate starting bytes */
                 if (counter < 5) {  /* RSRVD, ID, Length Low, Length High, INST */
-                        jdxl_ph2_inbound_parser_return_t val_ret = validate_pkt_start_byte(counter, byte);
+                        jdxl_ph2_inbound_parser_return_t val_ret;
+                        val_ret = validate_pkt_start_byte(counter, byte);
                         if (val_ret != JDXL_PH2_INBOUND_PARSER_NEED_MORE) return val_ret;
                 }
 
@@ -382,7 +389,7 @@ static jdxl_ph2_inbound_parser_return_t parser_handle_pkt_header_found(
                 if (parser_ctx->pkt_start_counter >= 5) {
                         parser_ctx->pkt_start_counter = 0;
                         
-                        uint16_t body_len = (uint16_t)out_pkt->dxl_buffer[JDXL_PH2_PKT_IDX_LENGTH_L] 
+                        uint16_t body_len = (uint16_t)out_pkt->dxl_buffer[JDXL_PH2_PKT_IDX_LENGTH_L]
                                             | ((uint16_t)out_pkt->dxl_buffer[JDXL_PH2_PKT_IDX_LENGTH_H] << 8);
                         uint32_t pkt_len = body_len + JDXL_PH2_PKT_IDX_INSTRUCTION;
 
@@ -502,8 +509,10 @@ uint16_t jdxl_ph2_estimate_worst_case_body_len(uint16_t body_len)
 
 // ================================================================================================
 
-jdxl_ph2_build_return_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t *ctx, const uint8_t id)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_ping(
+        jdxl_ph2_ctx_t *ctx,
+        const uint8_t id
+){
         jdxl_ph2_build_return_t ret;
 
         if (id == JDXL_PH2_DXL_BROADCAST_ID) {
@@ -539,8 +548,10 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t *ctx, const uint8_t i
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_count)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(
+        jdxl_ph2_ctx_t *ctx, 
+        const uint8_t target_servo_count
+){
         jdxl_ph2_build_return_t ret;
 
         if (target_servo_count > 253) {
@@ -584,8 +595,12 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint16_t data_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_read(
+        jdxl_ph2_ctx_t *ctx,
+        const uint8_t id,
+        const uint16_t addr,
+        const uint16_t data_len
+){
         jdxl_ph2_build_return_t ret;
 
         if (id == JDXL_PH2_DXL_BROADCAST_ID) {
@@ -628,8 +643,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t i
         return ret;
 };
 
-jdxl_ph2_build_return_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_write(
+        jdxl_ph2_ctx_t *ctx,
+        const uint8_t id,
+        const uint16_t addr,
+        const uint8_t data[],
+        const size_t data_len
+){
         jdxl_ph2_build_return_t ret;
 
         // minus CRC
@@ -673,8 +693,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t 
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(
+        jdxl_ph2_ctx_t *ctx,
+        const uint8_t id,
+        const uint16_t addr,
+        const uint8_t data[],
+        const size_t data_len
+){
         jdxl_ph2_build_return_t ret;
 
         // minus CRC
@@ -750,8 +775,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_action(jdxl_ph2_ctx_t *ctx, const uint8_t
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(jdxl_ph2_ctx_t *ctx, const uint8_t id, jdxl_ph2_dxl_factory_reset_t byte)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(
+        jdxl_ph2_ctx_t *ctx,
+        const uint8_t id,
+        jdxl_ph2_dxl_factory_reset_t byte
+){
         jdxl_ph2_build_return_t ret;
 
         if (id == JDXL_PH2_DXL_BROADCAST_ID && byte == 0xFF) {
@@ -826,8 +854,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t id, const jdxl_ph2_dxl_clear_t clear_mode)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_clear(
+        jdxl_ph2_ctx_t* ctx,
+        const uint8_t id,
+        const jdxl_ph2_dxl_clear_t clear_mode
+){
         jdxl_ph2_build_return_t ret;
         uint8_t param[5] = {0};
 
@@ -876,8 +907,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t 
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(
+        jdxl_ph2_ctx_t *ctx,
+        const uint8_t ids[],
+        const uint8_t ids_len,
+        const uint16_t addr,
+        const uint16_t data_len
+){
         jdxl_ph2_build_return_t ret;
 
         if (ids_len == 0) {
@@ -938,8 +974,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t addr, const uint16_t data_len, jdxl_ph2_sync_w_param_t write_param[], uint8_t write_param_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(
+        jdxl_ph2_ctx_t *ctx,
+        uint16_t addr,
+        const uint16_t data_len,
+        jdxl_ph2_sync_w_param_t write_param[],
+        uint8_t write_param_len
+){
         jdxl_ph2_build_return_t ret;
 
         if (write_param_len == 0) {
@@ -1002,8 +1043,13 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t 
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(
+        jdxl_ph2_ctx_t *ctx,
+        const uint8_t ids[],
+        const uint8_t ids_len,
+        const uint16_t addr,
+        const uint16_t data_len
+){
         jdxl_ph2_build_return_t ret;
 
         if (ids_len == 0) {
@@ -1060,8 +1106,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const
         return ret;
 }
 
-jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(
+        jdxl_ph2_ctx_t *ctx,
+        jdxl_ph2_bulk_r_param_t read_param[],
+        uint8_t read_param_len
+){
         jdxl_ph2_build_return_t ret;
 
         if (read_param_len == 0) {
@@ -1144,8 +1193,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_b
         return ret;
 };
 
-jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_bulk_w_param_t write_param[], uint8_t write_param_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(
+        jdxl_ph2_ctx_t* ctx,
+        jdxl_ph2_bulk_w_param_t write_param[],
+        uint8_t write_param_len
+){
         jdxl_ph2_build_return_t ret;
 
         if (write_param_len == 0) {
@@ -1227,8 +1279,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_
         return ret;
 };
 
-jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len)
-{
+jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
+        jdxl_ph2_ctx_t *ctx,
+        jdxl_ph2_bulk_r_param_t read_param[],
+        uint8_t read_param_len
+){
         jdxl_ph2_build_return_t ret;
 
         if (read_param_len == 0) {
@@ -1311,8 +1366,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_
 
 // ================================================================================================
 
-jdxl_ph2_feed_return_t jdxl_ph2_feed(jdxl_ph2_ctx_t *ctx, const uint8_t *in_buf, const size_t in_buf_len)
-{
+jdxl_ph2_feed_return_t jdxl_ph2_feed(
+        jdxl_ph2_ctx_t *ctx, 
+        const uint8_t *in_buf, 
+        const size_t in_buf_len
+){
         jdxl_ph2_feed_return_t ret;
 
         if (ctx->internals.expected_packet_count == 0 || ctx->internals.prev_inst == 0) {
