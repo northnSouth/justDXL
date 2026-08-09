@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.4.1
+ * Version : 0.4.2
  * ================================================================================================
  * License
  * -------
@@ -45,6 +45,7 @@
  * 0.3.0 | 2026-08-07 | API redesign and ping
  * 0.4.0 | 2026-08-09 | API completion #1, untested. License fix
  * 0.4.1 | 2026-08-09 | API completion #2, tested virtually. Implemented packet len estimation
+ * 0.4.2 | 2026-08-10 | Hot packet mechanism
  * ================================================================================================
  */
 
@@ -412,7 +413,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
 typedef enum {
         JDXL_PH2_FEED_BUF_SUCCESS_DONE,
         JDXL_PH2_FEED_BUF_SUCCESS_NEED_MORE,
-        JDXL_PH2_FEED_BUF_SUCCESS_PACKET_READY,
+        JDXL_PH2_FEED_BUF_SUCCESS_PACKET_HOT,
         JDXL_PH2_FEED_BUF_ERR_RX_PARSER
 } jdxl_ph2_feed_buf_return_t;
 
@@ -425,7 +426,8 @@ typedef struct {
 jdxl_ph2_feed_return_t jdxl_ph2_feed(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t* in_buf,
-        const size_t in_buf_len
+        const size_t in_buf_len,
+        uint8_t* is_packet_available
 );
 
 #endif

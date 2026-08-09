@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.4.1
+ * Version : 0.4.2
  * ================================================================================================
  * License
  * -------
@@ -45,6 +45,7 @@
  * 0.3.0 | 2026-08-07 | API redesign and ping
  * 0.4.0 | 2026-08-09 | API completion #1, untested. License fix
  * 0.4.1 | 2026-08-09 | API completion #2, tested virtually. Implemented packet len estimation
+ * 0.4.2 | 2026-08-10 | Hot packet mechanism
  * ================================================================================================
  */
 
@@ -1373,9 +1374,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
 jdxl_ph2_feed_return_t jdxl_ph2_feed(
         jdxl_ph2_ctx_t *ctx, 
         const uint8_t *in_buf, 
-        const size_t in_buf_len
+        const size_t in_buf_len,
+        uint8_t* is_packet_available
 ){
         jdxl_ph2_feed_return_t ret;
+        *is_packet_available = 0;
 
         if (ctx->internals.expected_packet_count == 0 || ctx->internals.prev_inst == 0) {
                 ret.feed_buf = JDXL_PH2_FEED_BUF_SUCCESS_DONE;
@@ -1423,10 +1426,12 @@ jdxl_ph2_feed_return_t jdxl_ph2_feed(
          * code must process one packet at a time, and later on feed for more packets.
          * //TODO: someone please design a better mechanism
          */
+        *is_packet_available = 1;
+
         if (--ctx->internals.expected_packet_count > 0) {
                 ctx->internals.expected_packet_idx++;
 
-                ret.feed_buf = JDXL_PH2_FEED_BUF_SUCCESS_PACKET_READY;
+                ret.feed_buf = JDXL_PH2_FEED_BUF_SUCCESS_PACKET_HOT;
                 ret.rx_parser = parse_ret;
                 return ret;
         };
