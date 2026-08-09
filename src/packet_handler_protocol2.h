@@ -58,8 +58,8 @@
  * which is the maximum length of a packet including its headers that the DYNAMIXEL Protocol 2.0
  * can logically handle as of the time where this packet handler is written. 
  */
-#define JDXL_PH2_PKT_MAX_LEN 256
-#define JDXL_PH2_DATA_WRITE_MAX_LEN 8
+#define JDXL_PH2_PKT_MAX_LEN (256)
+#define JDXL_PH2_SYN_BUL_DATA_WRITE_MAX_LEN (8)
 
 /* Protocol 2.0 packet structure */
 #define JDXL_PH2_PKT_IDX_HEADER0     0
@@ -219,13 +219,26 @@ typedef struct {
 
 typedef struct {
         uint8_t id;
-        uint8_t data[JDXL_PH2_DATA_WRITE_MAX_LEN];
+        uint8_t data[JDXL_PH2_SYN_BUL_DATA_WRITE_MAX_LEN];
 } jdxl_ph2_sync_w_param_t;
+
+typedef struct {
+        uint8_t id;
+        uint16_t addr;
+        uint16_t data_len;
+} jdxl_ph2_bulk_r_param_t;
+
+typedef struct {
+        uint8_t id;
+        uint16_t addr;
+        uint16_t data_len;
+        uint8_t data[JDXL_PH2_SYN_BUL_DATA_WRITE_MAX_LEN];
+} jdxl_ph2_bulk_w_param_t;
 
 //TODO: give these functions enum returns
 
 uint8_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t* ctx, const uint8_t id);
-// TODO: jdxl_ph2_build_ping_broadcast();
+uint8_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_id);
 uint8_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint16_t data_len);
 uint8_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
 uint8_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
@@ -235,10 +248,10 @@ uint8_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t id);
 uint8_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t id, const jdxl_ph2_dxl_clear_t clear_mode);
 uint8_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
 uint8_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t addr, const uint16_t data_len, jdxl_ph2_sync_w_param_t write_param[], uint8_t write_param_len);
-// TODO: jdxl_ph2_build_fast_sync_read();
-// TODO: jdxl_ph2_build_bulk_read();
-// TODO: jdxl_ph2_build_bulk_write();
-// TODO: jdxl_ph2_build_fast_sync_write();
+uint8_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
+uint8_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len);
+uint8_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_bulk_w_param_t write_param[], uint8_t write_param_len);
+uint8_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len);
 
 uint8_t jdxl_ph2_feed(jdxl_ph2_ctx_t* ctx, const uint8_t* in_buf, const size_t in_buf_len);
 

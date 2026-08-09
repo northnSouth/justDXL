@@ -519,6 +519,23 @@ uint8_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t *ctx, const uint8_t id)
         return 0;
 }
 
+uint8_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_id)
+{
+        jdxl_ph2_outbound_builder_return_t build_ret;
+        memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
+        
+        build_ret = jdxl_ph2_build_outbound(
+                JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_PING, 
+                NULL, 0, &ctx->outbound_pkt
+        );
+
+        if (build_ret != JDXL_PH2_OUTBOUND_BUILDER_SUCCESS) return 1; //TODO: proper error prop
+
+        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_PING;
+        ctx->internals.expected_packets = target_servo_id;
+        return 0;
+}
+
 uint8_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint16_t data_len)
 {
         if (id == JDXL_PH2_DXL_BROADCAST_ID) return 1; //TODO: proper error prop
@@ -694,7 +711,7 @@ uint8_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const
 {
         if (ids_len == 0) return 1; //TODO: proper error prop
 
-        //TODO: packet length bounds check
+        //FIXME: packet length bounds check
 
         jdxl_ph2_outbound_builder_return_t build_ret;
         memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
@@ -723,7 +740,7 @@ uint8_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t addr, const uint
 {
         if (write_param_len == 0) return 1; //TODO: proper error prop
 
-        //TODO: packet length bounds check
+        //FIXME: packet length bounds check
 
         jdxl_ph2_outbound_builder_return_t build_ret;
         memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
@@ -759,11 +776,174 @@ uint8_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t addr, const uint
         return 0;
 }
 
+uint8_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len)
+{
+        if (ids_len == 0) return 1; //TODO: proper error prop
+
+        //FIXME: packet length bounds check
+
+        jdxl_ph2_outbound_builder_return_t build_ret;
+        memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
+        
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION] = {
+                U16_TO_LOWBYTE(addr),
+                U16_TO_HIGHBYTE(addr),
+                U16_TO_LOWBYTE(data_len),
+                U16_TO_HIGHBYTE(data_len)
+        };
+        memcpy(param, ids, ids_len);
+        
+        build_ret = jdxl_ph2_build_outbound(
+                JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_FAST_SYNC_READ, 
+                param, 4 + ids_len, &ctx->outbound_pkt
+        );
+
+        if (build_ret != JDXL_PH2_OUTBOUND_BUILDER_SUCCESS) return 1; //TODO: proper error prop
+
+        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_FAST_SYNC_READ;
+        ctx->internals.expected_packets = 1;
+        return 0;
+}
+
+uint8_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len)
+{
+        if (read_param_len == 0) return 1; //TODO: proper error prop
+
+        //FIXME: packet length bounds check
+
+        jdxl_ph2_outbound_builder_return_t build_ret;
+        memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
+
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION] = {0};
+
+        // 256-bit presence bitmap for duplicate ID check
+        uint32_t seen[8] = {0};
+        for (uint8_t i = 0; i < read_param_len; i++) {
+                const uint8_t id = read_param[i].id;
+                
+                if (id == 0xFF || id == 0xFD || id == 0xFE) return 1;
+                
+                if (seen[id >> 5] & (1u << (id & 31))) return 1; // duplicate
+                seen[id >> 5] |= (1u << (id & 31));
+        }
+
+        size_t off = 0;
+        for (uint8_t i = 0; i < read_param_len; i++) {
+                param[off++] = read_param[i].id;
+                param[off++] = U16_TO_LOWBYTE(read_param[i].addr);
+                param[off++] = U16_TO_HIGHBYTE(read_param[i].addr);
+                param[off++] = U16_TO_LOWBYTE(read_param[i].data_len);
+                param[off++] = U16_TO_HIGHBYTE(read_param[i].data_len);
+        }
+
+        build_ret = jdxl_ph2_build_outbound(
+                JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_BULK_READ, 
+                param, off, &ctx->outbound_pkt
+        );
+
+        if (build_ret != JDXL_PH2_OUTBOUND_BUILDER_SUCCESS) return 1; //TODO: proper error prop
+
+        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_BULK_READ;
+        ctx->internals.expected_packets = read_param_len;
+        return 0;
+};
+
+uint8_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_bulk_w_param_t write_param[], uint8_t write_param_len)
+{
+        if (write_param_len == 0) return 1; //TODO: proper error prop
+
+        //FIXME: packet length bounds check
+
+        jdxl_ph2_outbound_builder_return_t build_ret;
+        memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
+
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION] = {0};
+
+        // 256-bit presence bitmap for duplicate ID check
+        uint32_t seen[8] = {0};
+        for (uint8_t i = 0; i < write_param_len; i++) {
+                const uint8_t id = write_param[i].id;
+                
+                if (id == 0xFF || id == 0xFD || id == 0xFE) return 1;
+                
+                if (seen[id >> 5] & (1u << (id & 31))) return 1; // duplicate
+                seen[id >> 5] |= (1u << (id & 31));
+        }
+
+        size_t off = 0;
+        for (uint8_t i = 0; i < write_param_len; i++) {
+                param[off++] = write_param[i].id;
+                param[off++] = U16_TO_LOWBYTE(write_param[i].addr);
+                param[off++] = U16_TO_HIGHBYTE(write_param[i].addr);
+                param[off++] = U16_TO_LOWBYTE(write_param[i].data_len);
+                param[off++] = U16_TO_HIGHBYTE(write_param[i].data_len);
+
+                if (write_param[i].data_len == 0) continue;
+
+                memcpy(&param[off], write_param[i].data, write_param[i].data_len);
+                off += write_param[i].data_len;
+        }
+
+        build_ret = jdxl_ph2_build_outbound(
+                JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_BULK_WRITE, 
+                param, off, &ctx->outbound_pkt
+        );
+
+        if (build_ret != JDXL_PH2_OUTBOUND_BUILDER_SUCCESS) return 1; //TODO: proper error prop
+
+        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_BULK_WRITE;
+        ctx->internals.expected_packets = 0;
+        return 0;
+};
+
+uint8_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len)
+{
+        if (read_param_len == 0) return 1; //TODO: proper error prop
+
+        //FIXME: packet length bounds check
+
+        jdxl_ph2_outbound_builder_return_t build_ret;
+        memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
+
+        uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION] = {0};
+
+        // 256-bit presence bitmap for duplicate ID check
+        uint32_t seen[8] = {0};
+        for (uint8_t i = 0; i < read_param_len; i++) {
+                const uint8_t id = read_param[i].id;
+                
+                if (id == 0xFF || id == 0xFD || id == 0xFE) return 1;
+                
+                if (seen[id >> 5] & (1u << (id & 31))) return 1; // duplicate
+                seen[id >> 5] |= (1u << (id & 31));
+        }
+
+        size_t off = 0;
+        for (uint8_t i = 0; i < read_param_len; i++) {
+                param[off++] = read_param[i].id;
+                param[off++] = U16_TO_LOWBYTE(read_param[i].addr);
+                param[off++] = U16_TO_HIGHBYTE(read_param[i].addr);
+                param[off++] = U16_TO_LOWBYTE(read_param[i].data_len);
+                param[off++] = U16_TO_HIGHBYTE(read_param[i].data_len);
+        }
+
+        build_ret = jdxl_ph2_build_outbound(
+                JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_FAST_BULK_READ, 
+                param, off, &ctx->outbound_pkt
+        );
+
+        if (build_ret != JDXL_PH2_OUTBOUND_BUILDER_SUCCESS) return 1; //TODO: proper error prop
+
+        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_FAST_BULK_READ;
+        ctx->internals.expected_packets = 1;
+        return 0;
+}
+
 // ================================================================================================
 
 uint8_t jdxl_ph2_feed(jdxl_ph2_ctx_t *ctx, const uint8_t *in_buf, const size_t in_buf_len)
 {
-        if (ctx->internals.expected_packets == 0) return 0;
+        if (ctx->internals.expected_packets == 0 || ctx->internals.prev_inst == 0) return 0;
 
         jdxl_ph2_inbound_parser_return_t parse_ret;
 
@@ -772,11 +952,15 @@ uint8_t jdxl_ph2_feed(jdxl_ph2_ctx_t *ctx, const uint8_t *in_buf, const size_t i
                 memset(&ctx->inbound_pkt, 0, sizeof(ctx->inbound_pkt));
         }
 
+        uint8_t skip_stuffing = (ctx->internals.prev_inst == JDXL_PH2_DXL_INST_FAST_SYNC_READ
+                                 || ctx->internals.prev_inst == JDXL_PH2_DXL_INST_FAST_BULK_READ
+                                ) ? 1 : 0;
+
         parse_ret = jdxl_ph2_parse_inbound(
                 &ctx->internals.in_parser_ctx,
                 in_buf, in_buf_len, 
                 JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_INSTRUCTION, //FIXME: estimate correctly
-                1, &ctx->internals.last_idx_fed, 
+                skip_stuffing, &ctx->internals.last_idx_fed, 
                 &ctx->inbound_pkt
         );
 
@@ -792,6 +976,8 @@ uint8_t jdxl_ph2_feed(jdxl_ph2_ctx_t *ctx, const uint8_t *in_buf, const size_t i
          * //TODO: someone please design a better mechanism
          */
         if (--ctx->internals.expected_packets > 0) return 2;
+
+        ctx->internals.prev_inst = 0;
 
         return 0;
 }
