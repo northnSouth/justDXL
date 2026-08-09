@@ -5,13 +5,13 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.3.0
+ * Version : 0.4.0
  * ================================================================================================
  * License
  * -------
  * MIT License
  * 
- * Copyright (c) 2026 North::ftr
+ * Copyright (c) 2026 Aftito Nur Faturohim
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,7 @@
  * 0.1.2 | 2026-08-06 | Comments
  * 0.2.0 | 2026-08-06 | API expansion, and ping wrapper function
  * 0.3.0 | 2026-08-07 | API redesign and ping
+ * 0.4.0 | 2026-08-09 | API completion #1, untested. License fix
  * ================================================================================================
  */
 
@@ -52,6 +53,10 @@
 #include "string.h"
 #include "stdint.h"
 
+// ================================================================================================
+// Protocol area
+// ================================================================================================
+
 /* This defines the maximum length of a single packet that can be processed. It shall be adjusted
  * to the memory constraints of the target application or can be set to:
  *         UINT16_MAX + PKT_IDX_PARAMETER0
@@ -59,7 +64,7 @@
  * can logically handle as of the time where this packet handler is written. 
  */
 #define JDXL_PH2_PKT_MAX_LEN (256)
-#define JDXL_PH2_SYN_BUL_DATA_WRITE_MAX_LEN (8)
+#define JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN (8)
 
 /* Protocol 2.0 packet structure */
 #define JDXL_PH2_PKT_IDX_HEADER0     0
@@ -104,6 +109,7 @@ enum jdxl_ph2_dxl_inst {
         JDXL_PH2_DXL_INST_FAST_BULK_READ = 0x9A
 };
 
+/* Protocol 2.0 error field values */
 typedef enum {
         JDXL_PH2_DXL_ERR_NONE,
         JDXL_PH2_DXL_ERR_RESULT_FAIL,
@@ -115,19 +121,25 @@ typedef enum {
         JDXL_PH2_DXL_ERR_ACCESS_ERROR
 } jdxl_ph2_dxl_err_t;
 
-/* Protocol 2.0 special bytes */
+/* Protocol 2.0 broadcast ID */
 #define JDXL_PH2_DXL_BROADCAST_ID 0xFE
 
+/* Protocol 2.0 factory reset values */
 typedef enum {
         JDXL_PH2_DXL_FACTORY_RESET_ALL = 0xFF,
         JDXL_PH2_DXL_FACTORY_RESET_ALL_BUT_ID = 0x01,
         JDXL_PH2_DXL_FACTORY_RESET_ALL_BUT_ID_AND_BAUDRATE = 0x02
 } jdxl_ph2_dxl_factory_reset_t;
 
+/* Protocol 2.0 clear values */
 typedef enum {
         JDXL_PH2_DXL_CLEAR_POS = 0x01,
         JDXL_PH2_DXL_CLEAR_ERR
 } jdxl_ph2_dxl_clear_t;
+
+// ================================================================================================
+// Packet handler area
+// ================================================================================================
 
 /* Generic packet struct */
 typedef struct {
@@ -151,6 +163,7 @@ typedef struct {
         uint16_t                           pkt_body_counter;
 } jdxl_ph2_inbound_parser_ctx_t;
 
+/* Inbound packet parser return codes */
 typedef enum {
         JDXL_PH2_INBOUND_PARSER_SUCCESS,
         JDXL_PH2_INBOUND_PARSER_NEED_MORE,
@@ -162,6 +175,7 @@ typedef enum {
         JDXL_PH2_INBOUND_PARSER_ERROR_CTX_STILL_RESET
 } jdxl_ph2_inbound_parser_return_t;
 
+/* Outbound packet builder return codes */
 typedef enum {
         JDXL_PH2_OUTBOUND_BUILDER_SUCCESS,
         JDXL_PH2_OUTBOUND_BUILDER_ERROR_INVALID_ID,
@@ -205,6 +219,11 @@ jdxl_ph2_inbound_parser_return_t jdxl_ph2_parse_inbound(
  */
 uint16_t jdxl_ph2_estimate_worst_case_body_len(uint16_t body_len);
 
+// ================================================================================================
+// API area
+// ================================================================================================
+
+/* Protocol 2.0 packet handler context, use one per DYNAMIXEL bus */
 typedef struct {
         jdxl_ph2_pkt_t outbound_pkt;
         jdxl_ph2_pkt_t inbound_pkt;
@@ -217,42 +236,75 @@ typedef struct {
         } internals;
 } jdxl_ph2_ctx_t;
 
+/* Protocol 2.0 packet handler Sync Write instruction parameters */
 typedef struct {
         uint8_t id;
-        uint8_t data[JDXL_PH2_SYN_BUL_DATA_WRITE_MAX_LEN];
+        uint8_t data[JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN];
 } jdxl_ph2_sync_w_param_t;
 
+/* Protocol 2.0 packet handler Bulk Read instruction parameters */
 typedef struct {
         uint8_t id;
         uint16_t addr;
         uint16_t data_len;
 } jdxl_ph2_bulk_r_param_t;
 
+/* Protocol 2.0 packet handler Bulk Write instruction parameters */
 typedef struct {
         uint8_t id;
         uint16_t addr;
         uint16_t data_len;
-        uint8_t data[JDXL_PH2_SYN_BUL_DATA_WRITE_MAX_LEN];
+        uint8_t data[JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN];
 } jdxl_ph2_bulk_w_param_t;
 
-//TODO: give these functions enum returns
+/* Protocol 2.0 packet handler build instruction return codes */
+typedef enum {
+        JDXL_PH2_BUILD_INST_SUCCESS,
+        JDXL_PH2_BUILD_INST_ERR_TX_BUILDER,
+        JDXL_PH2_BUILD_INST_ERR_INVALID_ID,
+        JDXL_PH2_BUILD_INST_ERR_PARAM_TOO_LONG,
+        JDXL_PH2_BUILD_INST_ERR_IMPOSSIBLE_SERVO_COUNT,
+        JDXL_PH2_BUILD_INST_ERR_INVALID_MODE,
+        JDXL_PH2_BUILD_INST_ERR_PARAM_CANNOT_BE_ZERO,
+        JDXL_PH2_BUILD_INST_ERR_PARAM_ID_CANNOT_BE_DUPLICATE
+} jdxl_ph2_build_inst_return_t;
 
-uint8_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t* ctx, const uint8_t id);
-uint8_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_id);
-uint8_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint16_t data_len);
-uint8_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
-uint8_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
-uint8_t jdxl_ph2_build_action(jdxl_ph2_ctx_t *ctx, const uint8_t id);
-uint8_t jdxl_ph2_build_factory_reset(jdxl_ph2_ctx_t *ctx, const uint8_t id, jdxl_ph2_dxl_factory_reset_t byte);
-uint8_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t id);
-uint8_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t id, const jdxl_ph2_dxl_clear_t clear_mode);
-uint8_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
-uint8_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t addr, const uint16_t data_len, jdxl_ph2_sync_w_param_t write_param[], uint8_t write_param_len);
-uint8_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
-uint8_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len);
-uint8_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_bulk_w_param_t write_param[], uint8_t write_param_len);
-uint8_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len);
+/* Protocol 2.0 packet handler build return codes */
+typedef struct {
+        jdxl_ph2_build_inst_return_t build_inst;
+        jdxl_ph2_outbound_builder_return_t tx_builder;
+} jdxl_ph2_build_return_t;
 
-uint8_t jdxl_ph2_feed(jdxl_ph2_ctx_t* ctx, const uint8_t* in_buf, const size_t in_buf_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_ping(jdxl_ph2_ctx_t* ctx, const uint8_t id);
+jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(jdxl_ph2_ctx_t *ctx, const uint8_t target_servo_id);
+jdxl_ph2_build_return_t jdxl_ph2_build_read(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint16_t data_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(jdxl_ph2_ctx_t *ctx, const uint8_t id, const uint16_t addr, const uint8_t data[], const size_t data_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_action(jdxl_ph2_ctx_t *ctx, const uint8_t id);
+jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(jdxl_ph2_ctx_t *ctx, const uint8_t id, jdxl_ph2_dxl_factory_reset_t byte);
+jdxl_ph2_build_return_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t id);
+jdxl_ph2_build_return_t jdxl_ph2_build_clear(jdxl_ph2_ctx_t* ctx, const uint8_t id, const jdxl_ph2_dxl_clear_t clear_mode);
+jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(jdxl_ph2_ctx_t *ctx, uint16_t addr, const uint16_t data_len, jdxl_ph2_sync_w_param_t write_param[], uint8_t write_param_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(jdxl_ph2_ctx_t *ctx, const uint8_t ids[], const uint8_t ids_len, const uint16_t addr, const uint16_t data_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(jdxl_ph2_ctx_t* ctx, jdxl_ph2_bulk_w_param_t write_param[], uint8_t write_param_len);
+jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(jdxl_ph2_ctx_t *ctx, jdxl_ph2_bulk_r_param_t read_param[], uint8_t read_param_len);
+
+/* Protocol 2.0 packet handler feed buffer return codes */
+typedef enum {
+        JDXL_PH2_FEED_BUF_SUCCESS_DONE,
+        JDXL_PH2_FEED_BUF_SUCCESS_NEED_MORE,
+        JDXL_PH2_FEED_BUF_SUCCESS_PACKET_READY,
+        JDXL_PH2_FEED_BUF_ERR_RX_PARSER
+} jdxl_ph2_feed_buf_return_t;
+
+/* Protocol 2.0 packet handler feed return codes */
+typedef struct {
+        jdxl_ph2_feed_buf_return_t feed_buf;
+        jdxl_ph2_inbound_parser_return_t rx_parser;
+} jdxl_ph2_feed_return_t;
+
+jdxl_ph2_feed_return_t jdxl_ph2_feed(jdxl_ph2_ctx_t* ctx, const uint8_t* in_buf, const size_t in_buf_len);
 
 #endif
