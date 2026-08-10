@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.5.0
+ * Version : 0.5.1
  * ================================================================================================
  * License
  * -------
@@ -48,6 +48,7 @@
  * 0.4.2 | 2026-08-10 | Hot packet mechanism
  * 0.4.3 | 2026-08-10 | Added debug stuff, fixed stupid bug
  * 0.5.0 | 2026-08-10 | Wire-tested codebase
+ * 0.5.1 | 2026-08-11 | API update, untested
  * ================================================================================================
  */
 
@@ -97,6 +98,8 @@
  * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#packet-id
  */
  #define JDXL_PH2_MAX_STATUS_PKT_COUNT (100)
+
+ #define JDXL_PH2_CLEAN_STATUS_PARAMS_MAX_LEN (256)
 
 /* Protocol 2.0 packet structure */
 #define JDXL_PH2_PKT_IDX_HEADER0     0
@@ -150,7 +153,8 @@ typedef enum {
         JDXL_PH2_DXL_ERR_DATA_RANGE_ERROR,
         JDXL_PH2_DXL_ERR_DATA_LENGTH_ERROR,
         JDXL_PH2_DXL_ERR_DATA_LIMIT_ERROR,
-        JDXL_PH2_DXL_ERR_ACCESS_ERROR
+        JDXL_PH2_DXL_ERR_ACCESS_ERROR,
+        JDXL_PH2_DXL_ERR_JDXL_STATUS_PARAMS_OVERFLOW = 0xFF
 } jdxl_ph2_dxl_err_t;
 
 /* Protocol 2.0 broadcast ID */
@@ -255,6 +259,13 @@ uint16_t jdxl_ph2_estimate_worst_case_body_len(uint16_t body_len);
 // API area
 // ================================================================================================
 
+typedef struct {
+        uint8_t id;
+        jdxl_ph2_dxl_err_t err;
+        uint8_t params[JDXL_PH2_CLEAN_STATUS_PARAMS_MAX_LEN];
+        size_t params_len;
+} jdxl_ph2_clean_status_data_t;
+
 /* Protocol 2.0 packet handler Sync Write instruction parameters */
 typedef struct {
         uint8_t id;
@@ -279,20 +290,13 @@ typedef struct {
 /* Protocol 2.0 packet handler context, use one per DYNAMIXEL bus */
 typedef struct {
         jdxl_ph2_pkt_t outbound_pkt;
-        jdxl_ph2_pkt_t inbound_pkt;
-        uint8_t prev_inst;
-        
-        struct {
-                uint8_t dxl_cnt;
-                uint16_t data_len;
-        } fast_sync_read;
+        jdxl_ph2_clean_status_data_t status_data[JDXL_PH2_MAX_STATUS_PKT_COUNT];
+        //TODO #1: consider fast instructions, redesign this array bound
 
         struct {
-                uint8_t dxl_cnt;
-                jdxl_ph2_bulk_r_param_t prev_param[253]; //TODO: limit servo count for syncbulk
-        } fast_bulk_read;
-
-        struct {
+                jdxl_ph2_pkt_t inbound_pkt;
+                uint8_t prev_inst;
+                
                 // including CRC and INST
                 uint16_t expected_packets_param_len[JDXL_PH2_MAX_STATUS_PKT_COUNT];
                 uint8_t expected_packet_count;
@@ -300,6 +304,17 @@ typedef struct {
 
                 jdxl_ph2_inbound_parser_ctx_t in_parser_ctx;
                 size_t last_idx_fed;
+
+                struct {
+                        uint8_t dxl_cnt;
+                        uint16_t data_len;
+                } fast_sync_read;
+        
+                struct {
+                        uint8_t dxl_cnt;
+                        jdxl_ph2_bulk_r_param_t prev_param[JDXL_PH2_MAX_STATUS_PKT_COUNT];
+                        //TODO #1: consider fast instructions, redesign this array bound
+                } fast_bulk_read;
         } internals;
 
         struct {
@@ -455,7 +470,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
 typedef enum {
         JDXL_PH2_FEED_BUF_SUCCESS_DONE,
         JDXL_PH2_FEED_BUF_SUCCESS_NEED_MORE,
-        JDXL_PH2_FEED_BUF_SUCCESS_PACKET_HOT,
         JDXL_PH2_FEED_BUF_ERR_RX_PARSER
 } jdxl_ph2_feed_buf_return_t;
 
@@ -469,8 +483,7 @@ typedef struct {
 jdxl_ph2_feed_return_t jdxl_ph2_feed(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t* in_buf,
-        const size_t in_buf_len,
-        uint8_t* is_packet_available
+        const size_t in_buf_len
 );
 
 #endif
