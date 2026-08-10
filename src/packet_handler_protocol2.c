@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.4.2
+ * Version : 0.4.3
  * ================================================================================================
  * License
  * -------
@@ -46,6 +46,7 @@
  * 0.4.0 | 2026-08-09 | API completion #1, untested. License fix
  * 0.4.1 | 2026-08-09 | API completion #2, tested virtually. Implemented packet len estimation
  * 0.4.2 | 2026-08-10 | Hot packet mechanism
+ * 0.4.3 | 2026-08-10 | Added debug stuff, fixed stupid bug
  * ================================================================================================
  */
 
@@ -474,13 +475,13 @@ jdxl_ph2_inbound_parser_return_t jdxl_ph2_parse_inbound(
                 case JDXL_PH2_INBOUND_PARSER_STATE_LOOK_HEADER:
                         ret = parser_handle_look_header(parser_ctx, inbound_buf, inbound_buf_len, 
                                                        last_idx_fed, out_pkt);
-                        if (ret != JDXL_PH2_INBOUND_PARSER_NEED_MORE) break;
+                        if (ret != JDXL_PH2_INBOUND_PARSER_STATE_PKT_HEADER_FOUND) break;
                         /* fall through to next state if header found */
 
                 case JDXL_PH2_INBOUND_PARSER_STATE_PKT_HEADER_FOUND:
                         ret = parser_handle_pkt_header_found(parser_ctx, inbound_buf, inbound_buf_len, 
                                                             pkt_len_estimate, last_idx_fed, out_pkt);
-                        if (ret != JDXL_PH2_INBOUND_PARSER_NEED_MORE) break;
+                        if (ret != JDXL_PH2_INBOUND_PARSER_STATE_FEEDING) break;
                         /* fall through to next state if header and starting bytes complete */
 
                 case JDXL_PH2_INBOUND_PARSER_STATE_FEEDING:

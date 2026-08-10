@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.4.2
+ * Version : 0.4.3
  * ================================================================================================
  * License
  * -------
@@ -46,6 +46,7 @@
  * 0.4.0 | 2026-08-09 | API completion #1, untested. License fix
  * 0.4.1 | 2026-08-09 | API completion #2, tested virtually. Implemented packet len estimation
  * 0.4.2 | 2026-08-10 | Hot packet mechanism
+ * 0.4.3 | 2026-08-10 | Added debug stuff, fixed stupid bug
  * ================================================================================================
  */
 
@@ -269,6 +270,21 @@ typedef struct {
                 jdxl_ph2_inbound_parser_ctx_t in_parser_ctx;
                 size_t last_idx_fed;
         } internals;
+
+        struct {
+                size_t success_packet_hot;
+                size_t success_done;
+                size_t success_need_more;
+                size_t err_rx_parser;
+                size_t invalid_rsrvd;
+                size_t invalid_id;
+                size_t param_too_long;
+                size_t not_a_status_pkt;
+                size_t crc_mismatch;
+                size_t ctx_still_reset;
+                size_t parser_error_unknown;
+                size_t unknown;
+        } debug;
 } jdxl_ph2_ctx_t;
 
 /* Protocol 2.0 packet handler Sync Write instruction parameters */
@@ -312,16 +328,22 @@ typedef struct {
         jdxl_ph2_outbound_builder_return_t tx_builder;
 } jdxl_ph2_build_return_t;
 
+/* Protocol 2.0 packet handler build ping instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_ping(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id
 );
 
+/* Protocol 2.0 packet handler build ping broadcast instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t target_servo_count
 );
 
+/* Protocol 2.0 packet handler build read instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_read(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
@@ -329,6 +351,8 @@ jdxl_ph2_build_return_t jdxl_ph2_build_read(
         const uint16_t data_len
 );
 
+/* Protocol 2.0 packet handler build write instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_write(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
@@ -337,6 +361,8 @@ jdxl_ph2_build_return_t jdxl_ph2_build_write(
         const size_t data_len
 );
 
+/* Protocol 2.0 packet handler build reg write instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
@@ -345,28 +371,38 @@ jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(
         const size_t data_len
 );
 
+/* Protocol 2.0 packet handler build action instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_action(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id
 );
 
+/* Protocol 2.0 packet handler build factory reset instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
         jdxl_ph2_dxl_factory_reset_t byte
 );
 
+/* Protocol 2.0 packet handler build reboot instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_reboot(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id
 );
 
+/* Protocol 2.0 packet handler build clear instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_clear(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
         const jdxl_ph2_dxl_clear_t clear_mode
 );
 
+/* Protocol 2.0 packet handler build sync read instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t ids[],
@@ -375,6 +411,8 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(
         const uint16_t data_len
 );
 
+/* Protocol 2.0 packet handler build sync write instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(
         jdxl_ph2_ctx_t* ctx,
         uint16_t addr,
@@ -383,6 +421,8 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(
         uint8_t write_param_len
 );
 
+/* Protocol 2.0 packet handler build fast sync read instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t ids[],
@@ -391,18 +431,24 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(
         const uint16_t data_len
 );
 
+/* Protocol 2.0 packet handler build bulk read instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(
         jdxl_ph2_ctx_t* ctx,
         jdxl_ph2_bulk_r_param_t read_param[],
         uint8_t read_param_len
 );
 
+/* Protocol 2.0 packet handler build bulk write instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(
         jdxl_ph2_ctx_t* ctx,
         jdxl_ph2_bulk_w_param_t write_param[],
         uint8_t write_param_len
 );
 
+/* Protocol 2.0 packet handler build fast bulk read instruction packet */
+/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
         jdxl_ph2_ctx_t* ctx,
         jdxl_ph2_bulk_r_param_t read_param[],
@@ -423,6 +469,7 @@ typedef struct {
         jdxl_ph2_inbound_parser_return_t rx_parser;
 } jdxl_ph2_feed_return_t;
 
+/* Protocol 2.0 packet handler feed on inbound buffer */
 jdxl_ph2_feed_return_t jdxl_ph2_feed(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t* in_buf,
