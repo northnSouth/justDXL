@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.5.1
+ * Version : 0.5.2
  * ================================================================================================
  * License
  * -------
@@ -49,6 +49,7 @@
  * 0.4.3 | 2026-08-10 | Added debug stuff, fixed stupid bug
  * 0.5.0 | 2026-08-10 | Wire-tested codebase
  * 0.5.1 | 2026-08-11 | API update, untested
+ * 0.5.2 | 2026-08-11 | Wire-tested
  * ================================================================================================
  */
 
@@ -97,9 +98,11 @@
  * in consideration. 
  * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#packet-id
  */
- #define JDXL_PH2_MAX_STATUS_PKT_COUNT (100)
-
- #define JDXL_PH2_CLEAN_STATUS_PARAMS_MAX_LEN (256)
+ #define JDXL_PH2_MAX_STATUS_PKT_COUNT (8)
+/* This defines the maximum length of status params per servo/ID. Like the ones above, it should 
+ * be adjusted to your use case, especially considering memory constraint. The bigger the better.
+ */
+ #define JDXL_PH2_CLEAN_STATUS_PARAMS_MAX_LEN (20)
 
 /* Protocol 2.0 packet structure */
 #define JDXL_PH2_PKT_IDX_HEADER0     0

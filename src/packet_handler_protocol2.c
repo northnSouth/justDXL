@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.5.1
+ * Version : 0.5.2
  * ================================================================================================
  * License
  * -------
@@ -49,6 +49,7 @@
  * 0.4.3 | 2026-08-10 | Added debug stuff, fixed stupid bug
  * 0.5.0 | 2026-08-10 | Wire-tested codebase
  * 0.5.1 | 2026-08-11 | API update, untested
+ * 0.5.2 | 2026-08-11 | Wire-tested
  * ================================================================================================
  */
 
@@ -1318,6 +1319,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
         uint8_t param[JDXL_PH2_PKT_MAX_LEN - JDXL_PH2_PKT_IDX_PARAMETER0 - 2] = {0};
 
         // ID, L_ADDR, H_ADDR, L_DATA_LEN, H_DATA_LEN
+        // TODO #1
         if ((5 * read_param_len) > sizeof(param) || read_param_len > JDXL_PH2_MAX_STATUS_PKT_COUNT) 
         {
                 ret.build_inst = JDXL_PH2_BUILD_INST_ERR_PARAM_TOO_LONG;
