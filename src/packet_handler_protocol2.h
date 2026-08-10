@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.4.3
+ * Version : 0.5.0
  * ================================================================================================
  * License
  * -------
@@ -47,6 +47,7 @@
  * 0.4.1 | 2026-08-09 | API completion #2, tested virtually. Implemented packet len estimation
  * 0.4.2 | 2026-08-10 | Hot packet mechanism
  * 0.4.3 | 2026-08-10 | Added debug stuff, fixed stupid bug
+ * 0.5.0 | 2026-08-10 | Wire-tested codebase
  * ================================================================================================
  */
 
@@ -83,12 +84,12 @@
  * Source: https://docs.robotis.com/docs/dxl/protocol/protocol2/#length
  */
 #define JDXL_PH2_PKT_MAX_LEN (256)
-/* This defines the maximum length of the data written by Sync Write and Bulk Write instructions at
+/* This defines the maximum length of the data accessed by Sync and Bulk instructions at
  * a time. Generally, this should not be bigger than your application's requirements and you should
  * pay attention to the worst-case cumulated packet length value of said instructions' usage or
  * protocol limits-related issues may arise.
  */
-#define JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN (8)
+#define JDXL_PH2_SYNC_BULK_DATA_MAX_LEN (8)
 /* This defines the maximum count of status packets received at a time. It should not be more than
  * the max possible valid ID range count (253) since it's impossible for the protocol to handle
  * more than that in a single bus at a time. Your application's memory constraints should also be
@@ -254,14 +255,44 @@ uint16_t jdxl_ph2_estimate_worst_case_body_len(uint16_t body_len);
 // API area
 // ================================================================================================
 
+/* Protocol 2.0 packet handler Sync Write instruction parameters */
+typedef struct {
+        uint8_t id;
+        uint8_t data[JDXL_PH2_SYNC_BULK_DATA_MAX_LEN];
+} jdxl_ph2_sync_w_param_t;
+
+/* Protocol 2.0 packet handler Bulk Read instruction parameters */
+typedef struct {
+        uint8_t id;
+        uint16_t addr;
+        uint16_t data_len;
+} jdxl_ph2_bulk_r_param_t;
+
+/* Protocol 2.0 packet handler Bulk Write instruction parameters */
+typedef struct {
+        uint8_t id;
+        uint16_t addr;
+        uint16_t data_len;
+        uint8_t data[JDXL_PH2_SYNC_BULK_DATA_MAX_LEN];
+} jdxl_ph2_bulk_w_param_t;
+
 /* Protocol 2.0 packet handler context, use one per DYNAMIXEL bus */
 typedef struct {
         jdxl_ph2_pkt_t outbound_pkt;
         jdxl_ph2_pkt_t inbound_pkt;
+        uint8_t prev_inst;
+        
+        struct {
+                uint8_t dxl_cnt;
+                uint16_t data_len;
+        } fast_sync_read;
 
         struct {
-                uint8_t prev_inst;
+                uint8_t dxl_cnt;
+                jdxl_ph2_bulk_r_param_t prev_param[253]; //TODO: limit servo count for syncbulk
+        } fast_bulk_read;
 
+        struct {
                 // including CRC and INST
                 uint16_t expected_packets_param_len[JDXL_PH2_MAX_STATUS_PKT_COUNT];
                 uint8_t expected_packet_count;
@@ -287,27 +318,6 @@ typedef struct {
         } debug;
 } jdxl_ph2_ctx_t;
 
-/* Protocol 2.0 packet handler Sync Write instruction parameters */
-typedef struct {
-        uint8_t id;
-        uint8_t data[JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN];
-} jdxl_ph2_sync_w_param_t;
-
-/* Protocol 2.0 packet handler Bulk Read instruction parameters */
-typedef struct {
-        uint8_t id;
-        uint16_t addr;
-        uint16_t data_len;
-} jdxl_ph2_bulk_r_param_t;
-
-/* Protocol 2.0 packet handler Bulk Write instruction parameters */
-typedef struct {
-        uint8_t id;
-        uint16_t addr;
-        uint16_t data_len;
-        uint8_t data[JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN];
-} jdxl_ph2_bulk_w_param_t;
-
 /* Protocol 2.0 packet handler build instruction return codes */
 typedef enum {
         JDXL_PH2_BUILD_INST_SUCCESS,
@@ -319,7 +329,8 @@ typedef enum {
         JDXL_PH2_BUILD_INST_ERR_PARAM_CANNOT_BE_ZERO,
         JDXL_PH2_BUILD_INST_ERR_PARAM_ID_CANNOT_BE_DUPLICATE,
         JDXL_PH2_BUILD_INST_ERR_WRITE_DATA_LEN_TOO_LONG,
-        JDXL_PH2_BUILD_INST_ERR_EXPECTED_STATUS_PKT_TOO_MANY
+        JDXL_PH2_BUILD_INST_ERR_EXPECTED_STATUS_PKT_TOO_MANY,
+        JDXL_PH2_BUILD_INST_ERR_TARGET_SERVO_CANNOT_BE_ZERO
 } jdxl_ph2_build_inst_return_t;
 
 /* Protocol 2.0 packet handler build return codes */
@@ -329,21 +340,18 @@ typedef struct {
 } jdxl_ph2_build_return_t;
 
 /* Protocol 2.0 packet handler build ping instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_ping(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id
 );
 
 /* Protocol 2.0 packet handler build ping broadcast instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t target_servo_count
 );
 
 /* Protocol 2.0 packet handler build read instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_read(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
@@ -352,7 +360,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_read(
 );
 
 /* Protocol 2.0 packet handler build write instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_write(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
@@ -362,7 +369,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_write(
 );
 
 /* Protocol 2.0 packet handler build reg write instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
@@ -372,14 +378,12 @@ jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(
 );
 
 /* Protocol 2.0 packet handler build action instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_action(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id
 );
 
 /* Protocol 2.0 packet handler build factory reset instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
@@ -387,14 +391,12 @@ jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(
 );
 
 /* Protocol 2.0 packet handler build reboot instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_reboot(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id
 );
 
 /* Protocol 2.0 packet handler build clear instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_clear(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t id,
@@ -402,7 +404,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_clear(
 );
 
 /* Protocol 2.0 packet handler build sync read instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t ids[],
@@ -412,7 +413,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(
 );
 
 /* Protocol 2.0 packet handler build sync write instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(
         jdxl_ph2_ctx_t* ctx,
         uint16_t addr,
@@ -422,7 +422,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(
 );
 
 /* Protocol 2.0 packet handler build fast sync read instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(
         jdxl_ph2_ctx_t* ctx,
         const uint8_t ids[],
@@ -432,7 +431,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(
 );
 
 /* Protocol 2.0 packet handler build bulk read instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(
         jdxl_ph2_ctx_t* ctx,
         jdxl_ph2_bulk_r_param_t read_param[],
@@ -440,7 +438,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(
 );
 
 /* Protocol 2.0 packet handler build bulk write instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(
         jdxl_ph2_ctx_t* ctx,
         jdxl_ph2_bulk_w_param_t write_param[],
@@ -448,7 +445,6 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(
 );
 
 /* Protocol 2.0 packet handler build fast bulk read instruction packet */
-/* Untested */
 jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
         jdxl_ph2_ctx_t* ctx,
         jdxl_ph2_bulk_r_param_t read_param[],

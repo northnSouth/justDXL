@@ -5,7 +5,7 @@
  * ================================================================================================
  * Author  : aftito.faturohim@gmail.com
  * Created : 2026-08-04
- * Version : 0.4.3
+ * Version : 0.5.0
  * ================================================================================================
  * License
  * -------
@@ -47,6 +47,7 @@
  * 0.4.1 | 2026-08-09 | API completion #2, tested virtually. Implemented packet len estimation
  * 0.4.2 | 2026-08-10 | Hot packet mechanism
  * 0.4.3 | 2026-08-10 | Added debug stuff, fixed stupid bug
+ * 0.5.0 | 2026-08-10 | Wire-tested codebase
  * ================================================================================================
  */
 
@@ -538,7 +539,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_PING;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_PING;
 
         /* Ping status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | P1 | P2 | P3 | CRC 1 | CRC 2
@@ -557,6 +558,11 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(
         const uint8_t target_servo_count
 ){
         jdxl_ph2_build_return_t ret;
+
+        if (target_servo_count == 0) {
+                ret.build_inst = JDXL_PH2_BUILD_INST_ERR_TARGET_SERVO_CANNOT_BE_ZERO;
+                return ret;
+        }
 
         if (target_servo_count > 253) {
                 ret.build_inst = JDXL_PH2_BUILD_INST_ERR_IMPOSSIBLE_SERVO_COUNT;
@@ -577,7 +583,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_ping_broadcast(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_PING;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_PING;
 
         /* Ping status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | P1 | P2 | P3 | CRC 1 | CRC 2
@@ -633,7 +639,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_read(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_READ;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_READ;
 
         /* Read status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | Pn... | CRC 1 | CRC 2
@@ -683,7 +689,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_write(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_WRITE;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_WRITE;
         
         /* Write status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
@@ -733,7 +739,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_reg_write(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_REG_WRITE;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_REG_WRITE;
         
         /* Reg Write status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
@@ -765,7 +771,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_action(jdxl_ph2_ctx_t *ctx, const uint8_t
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_ACTION;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_ACTION;
 
         /* Action status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
@@ -812,7 +818,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_factory_reset(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_FACTORY_RESET;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_FACTORY_RESET;
 
          /* Factory reset status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
@@ -844,7 +850,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_reboot(jdxl_ph2_ctx_t *ctx, const uint8_t
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_REBOOT;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_REBOOT;
 
         /* Reboot status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
@@ -897,7 +903,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_clear(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_CLEAR;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_CLEAR;
 
         /* Clear status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | CRC 1 | CRC 2
@@ -941,7 +947,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(
         jdxl_ph2_outbound_builder_return_t build_ret;
         memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
         
-        memcpy(param, ids, ids_len);
+        memcpy(param + 4, ids, ids_len);
         
         build_ret = jdxl_ph2_build_outbound(
                 JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_SYNC_READ, 
@@ -954,7 +960,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_read(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_SYNC_READ;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_SYNC_READ;
         
         /* Sync read status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | Pn... | CRC 1 | CRC 2
@@ -1002,7 +1008,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(
 
         uint32_t params_chunk = data_len + 1; // id + data bytes
 
-        if (data_len > JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN) {
+        if (data_len > JDXL_PH2_SYNC_BULK_DATA_MAX_LEN) {
                 ret.build_inst = JDXL_PH2_BUILD_INST_ERR_WRITE_DATA_LEN_TOO_LONG;
                 return ret;
         }
@@ -1039,7 +1045,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_sync_write(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_SYNC_WRITE;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_SYNC_WRITE;
         ctx->internals.expected_packet_count = 0;
 
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
@@ -1077,7 +1083,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(
         jdxl_ph2_outbound_builder_return_t build_ret;
         memset(&ctx->outbound_pkt, 0, sizeof(ctx->outbound_pkt));
         
-        memcpy(param, ids, ids_len);
+        memcpy(param + 4, ids, ids_len);
         
         build_ret = jdxl_ph2_build_outbound(
                 JDXL_PH2_DXL_BROADCAST_ID, JDXL_PH2_DXL_INST_FAST_SYNC_READ, 
@@ -1090,7 +1096,9 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_sync_read(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_FAST_SYNC_READ;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_FAST_SYNC_READ;
+        ctx->fast_sync_read.dxl_cnt = ids_len;
+        ctx->fast_sync_read.data_len = data_len;
 
         /* Fast sync read status packet:
          * H1 | H2 | H3 | RSRV | BROADCAST ID | LEN1 | LEN2 | INST | ERR | ID1 | Dn... | CRC 1 | CRC 2
@@ -1173,7 +1181,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_read(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_BULK_READ;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_BULK_READ;
 
         /* Bulk read status packet:
          * H1 | H2 | H3 | RSRV | ID | LEN1 | LEN2 | INST | ERR | Pn... | CRC 1 | CRC 2
@@ -1225,7 +1233,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(
                         return ret;
                 }
 
-                if (write_param[i].data_len > JDXL_PH2_SYNC_BULK_DATA_WRITE_MAX_LEN) {
+                if (write_param[i].data_len > JDXL_PH2_SYNC_BULK_DATA_MAX_LEN) {
                         ret.build_inst = JDXL_PH2_BUILD_INST_ERR_WRITE_DATA_LEN_TOO_LONG;
                         return ret;
                 }
@@ -1275,7 +1283,7 @@ jdxl_ph2_build_return_t jdxl_ph2_build_bulk_write(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_BULK_WRITE;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_BULK_WRITE;
         ctx->internals.expected_packet_count = 0;
         
         ret.build_inst = JDXL_PH2_BUILD_INST_SUCCESS;
@@ -1346,7 +1354,10 @@ jdxl_ph2_build_return_t jdxl_ph2_build_fast_bulk_read(
                 return ret;
         }
 
-        ctx->internals.prev_inst = JDXL_PH2_DXL_INST_FAST_BULK_READ;
+        ctx->prev_inst = JDXL_PH2_DXL_INST_FAST_BULK_READ;
+        ctx->fast_bulk_read.dxl_cnt = read_param_len;
+        for (uint8_t i = 0; i < read_param_len; i++)
+                ctx->fast_bulk_read.prev_param[i] = read_param[i];
 
         /* Fast Bulk Read status packet:
          * H1 | H2 | H3 | RSRV | BROADCAST ID | LEN1 | LEN2 | INST | ERR | ID1 | Pn... | CRC1 | CRC2
@@ -1381,7 +1392,7 @@ jdxl_ph2_feed_return_t jdxl_ph2_feed(
         jdxl_ph2_feed_return_t ret;
         *is_packet_available = 0;
 
-        if (ctx->internals.expected_packet_count == 0 || ctx->internals.prev_inst == 0) {
+        if (ctx->internals.expected_packet_count == 0) {
                 ret.feed_buf = JDXL_PH2_FEED_BUF_SUCCESS_DONE;
                 return ret;
         };
@@ -1393,8 +1404,8 @@ jdxl_ph2_feed_return_t jdxl_ph2_feed(
                 memset(&ctx->inbound_pkt, 0, sizeof(ctx->inbound_pkt));
         }
 
-        uint8_t skip_stuffing = (ctx->internals.prev_inst == JDXL_PH2_DXL_INST_FAST_SYNC_READ
-                                 || ctx->internals.prev_inst == JDXL_PH2_DXL_INST_FAST_BULK_READ
+        uint8_t skip_stuffing = (ctx->prev_inst == JDXL_PH2_DXL_INST_FAST_SYNC_READ
+                                 || ctx->prev_inst == JDXL_PH2_DXL_INST_FAST_BULK_READ
                                 ) ? 1 : 0;
         
         size_t pkt_len_estimate = jdxl_ph2_estimate_worst_case_body_len(
@@ -1437,7 +1448,6 @@ jdxl_ph2_feed_return_t jdxl_ph2_feed(
                 return ret;
         };
 
-        ctx->internals.prev_inst = 0;
         memset(
                 ctx->internals.expected_packets_param_len, 0, 
                 sizeof(ctx->internals.expected_packets_param_len)
