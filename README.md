@@ -4,7 +4,7 @@ A transport-agnostic packet handler for the DYNAMIXEL protocol used in DYNAMIXEL
 ### Milestones
 - [ ] Alpha release
 - [ ] First documentation
-- [ ] Ready-to-use driver for microcontrollers  
+- [ ] Ready-to-use drivers
   - [ ] STM32 HAL
   - [ ] Arduino C++
   - [ ] Linux C
