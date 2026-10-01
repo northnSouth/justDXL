@@ -9,7 +9,7 @@ A transport-agnostic packet handler for the DYNAMIXEL protocol used in DYNAMIXEL
   - [ ] Arduino C++
   - [ ] Linux C
   - [ ] Linux C++
-  - [ ] Linux Rust
+- [ ] Rust implementation
 
 ---
 
