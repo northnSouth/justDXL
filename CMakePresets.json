@@ -1,0 +1,45 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "JDXL_PH1_PKT_MAX_LEN": "259",
+                "JDXL_PH1_MAX_STATUS": "8",
+                "JDXL_PH2_MAX_STATUS": "8"
+            }
+        },
+        {
+            "name": "debug",
+            "inherits": "base",
+            "displayName": "Debug (protocol-maximum packets, tests + sanitizers)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "JDXL_PH2_PKT_MAX_LEN": "65535"
+            }
+        },
+        {
+            "name": "release",
+            "inherits": "base",
+            "displayName": "Release (256-byte Protocol 2.0 packets)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "JDXL_PH2_PKT_MAX_LEN": "256"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "debug",   "configurePreset": "debug" },
+        { "name": "release", "configurePreset": "release" }
+    ],
+    "testPresets": [
+        {
+            "name": "debug",
+            "configurePreset": "debug",
+            "output": { "outputOnFailure": true }
+        }
+    ]
+}

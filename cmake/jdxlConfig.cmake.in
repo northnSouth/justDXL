@@ -1,0 +1,12 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/jdxlTargets.cmake")
+
+# Sizes the installed archive was built with. Informational: consumers already get
+# them through the target's INTERFACE_COMPILE_DEFINITIONS.
+set(jdxl_PH1_PKT_MAX_LEN @JDXL_PH1_PKT_MAX_LEN@)
+set(jdxl_PH1_MAX_STATUS  @JDXL_PH1_MAX_STATUS@)
+set(jdxl_PH2_PKT_MAX_LEN @JDXL_PH2_PKT_MAX_LEN@)
+set(jdxl_PH2_MAX_STATUS  @JDXL_PH2_MAX_STATUS@)
+
+check_required_components(jdxl)
